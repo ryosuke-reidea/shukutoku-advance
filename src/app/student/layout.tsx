@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Sheet,
   SheetTrigger,
@@ -24,6 +25,7 @@ import {
   Menu,
   GraduationCap,
   Home,
+  Calendar,
 } from 'lucide-react'
 
 const navItems = [
@@ -38,16 +40,31 @@ export default function StudentLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, profile, loading, signOut } = useAuth()
+  const { user, profile, loading, signOut, supabase } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [activeTermName, setActiveTermName] = useState<string | null>(null)
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/auth/student-login')
     }
   }, [user, loading, router])
+
+  // アクティブな会期名を取得
+  useEffect(() => {
+    if (!user || !supabase) return
+    const fetchTerm = async () => {
+      const { data } = await supabase
+        .from('terms')
+        .select('name')
+        .eq('is_active', true)
+        .single()
+      if (data) setActiveTermName(data.name)
+    }
+    fetchTerm()
+  }, [user, supabase])
 
   if (loading) {
     return (
@@ -89,6 +106,14 @@ export default function StudentLayout({
           </p>
         </div>
       </div>
+
+      {/* 会期表示 */}
+      {activeTermName && (
+        <div className="mx-4 mb-2 flex items-center gap-2 rounded-lg bg-primary/5 px-3 py-2">
+          <Calendar className="size-4 text-primary shrink-0" />
+          <span className="text-xs font-medium text-primary truncate">{activeTermName}</span>
+        </div>
+      )}
 
       <Separator />
 
@@ -173,6 +198,11 @@ export default function StudentLayout({
             </SheetContent>
           </Sheet>
           <span className="text-sm font-semibold">アドバンス受講生</span>
+          {activeTermName && (
+            <Badge variant="outline" className="text-[10px] ml-auto">
+              {activeTermName}
+            </Badge>
+          )}
         </header>
 
         {/* Main Content */}

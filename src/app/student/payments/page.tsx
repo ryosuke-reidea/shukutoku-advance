@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table'
 import { PAYMENT_METHODS, PAYMENT_STATUSES } from '@/lib/constants'
 import type { Enrollment, Course, PaymentStatus, PaymentMethod } from '@/lib/types/database'
-import { CreditCard } from 'lucide-react'
+import { CreditCard, Calendar } from 'lucide-react'
 
 type EnrollmentWithCourse = Enrollment & {
   course: Course
@@ -74,12 +74,24 @@ function formatDate(dateStr: string | null) {
 export default function PaymentsPage() {
   const { user, supabase } = useAuth()
   const [enrollments, setEnrollments] = useState<EnrollmentWithCourse[]>([])
+  const [activeTermName, setActiveTermName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!user) return
 
     const fetchPayments = async () => {
+      // アクティブな会期を取得
+      const { data: activeTerm } = await supabase
+        .from('terms')
+        .select('id, name')
+        .eq('is_active', true)
+        .single()
+
+      if (activeTerm) {
+        setActiveTermName(activeTerm.name)
+      }
+
       const { data, error } = await supabase
         .from('enrollments')
         .select('*, course:courses(*)')
@@ -87,7 +99,12 @@ export default function PaymentsPage() {
         .order('enrolled_at', { ascending: false })
 
       if (!error && data) {
-        setEnrollments(data as EnrollmentWithCourse[])
+        // アクティブな会期でフィルタ
+        let filtered = data as EnrollmentWithCourse[]
+        if (activeTerm?.id) {
+          filtered = filtered.filter((e) => e.course?.term_id === activeTerm.id)
+        }
+        setEnrollments(filtered)
       }
       setLoading(false)
     }
@@ -102,6 +119,14 @@ export default function PaymentsPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           各講座の支払い状況を確認できます
         </p>
+        {activeTermName && (
+          <div className="mt-2 flex items-center gap-2">
+            <Calendar className="size-4 text-primary" />
+            <Badge variant="outline" className="text-xs font-medium">
+              {activeTermName}
+            </Badge>
+          </div>
+        )}
       </div>
 
       {loading ? (

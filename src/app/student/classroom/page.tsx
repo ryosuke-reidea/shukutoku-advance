@@ -11,7 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { DAYS_OF_WEEK } from '@/lib/constants'
 import type { ClassroomAssignment, Course } from '@/lib/types/database'
-import { DoorOpen } from 'lucide-react'
+import { DoorOpen, Calendar } from 'lucide-react'
 import { formatTime } from '@/lib/utils'
 
 type AssignmentWithCourse = ClassroomAssignment & {
@@ -21,17 +21,34 @@ type AssignmentWithCourse = ClassroomAssignment & {
 export default function ClassroomPage() {
   const { supabase } = useAuth()
   const [assignments, setAssignments] = useState<AssignmentWithCourse[]>([])
+  const [activeTermName, setActiveTermName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchAssignments = async () => {
+      // アクティブな会期を取得
+      const { data: activeTerm } = await supabase
+        .from('terms')
+        .select('id, name')
+        .eq('is_active', true)
+        .single()
+
+      if (activeTerm) {
+        setActiveTermName(activeTerm.name)
+      }
+
       const { data, error } = await supabase
         .from('classroom_assignments')
         .select('*, course:courses(*)')
         .order('start_time', { ascending: true })
 
       if (!error && data) {
-        setAssignments(data as AssignmentWithCourse[])
+        // アクティブな会期でフィルタ
+        let filtered = data as AssignmentWithCourse[]
+        if (activeTerm?.id) {
+          filtered = filtered.filter((a) => a.course?.term_id === activeTerm.id)
+        }
+        setAssignments(filtered)
       }
       setLoading(false)
     }
@@ -55,6 +72,14 @@ export default function ClassroomPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           各講座の教室と時間を確認できます
         </p>
+        {activeTermName && (
+          <div className="mt-2 flex items-center gap-2">
+            <Calendar className="size-4 text-primary" />
+            <Badge variant="outline" className="text-xs font-medium">
+              {activeTermName}
+            </Badge>
+          </div>
+        )}
       </div>
 
       {loading ? (

@@ -18,7 +18,7 @@ import {
   PAYMENT_STATUSES,
 } from '@/lib/constants'
 import type { Enrollment, Course, EnrollmentStatus, PaymentStatus } from '@/lib/types/database'
-import { BookOpen, Clock, MapPin, Plus } from 'lucide-react'
+import { BookOpen, Clock, MapPin, Plus, Calendar } from 'lucide-react'
 import { formatTime } from '@/lib/utils'
 
 type EnrollmentWithCourse = Enrollment & {
@@ -58,12 +58,24 @@ function getPaymentBadgeVariant(status: PaymentStatus) {
 export default function StudentDashboardPage() {
   const { user, profile, supabase } = useAuth()
   const [enrollments, setEnrollments] = useState<EnrollmentWithCourse[]>([])
+  const [activeTermName, setActiveTermName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!user) return
 
     const fetchEnrollments = async () => {
+      // アクティブな会期を取得
+      const { data: activeTerm } = await supabase
+        .from('terms')
+        .select('id, name')
+        .eq('is_active', true)
+        .single()
+
+      if (activeTerm) {
+        setActiveTermName(activeTerm.name)
+      }
+
       const { data, error } = await supabase
         .from('enrollments')
         .select('*, course:courses(*)')
@@ -71,7 +83,12 @@ export default function StudentDashboardPage() {
         .order('enrolled_at', { ascending: false })
 
       if (!error && data) {
-        setEnrollments(data as EnrollmentWithCourse[])
+        // アクティブな会期でフィルタ
+        let filtered = data as EnrollmentWithCourse[]
+        if (activeTerm?.id) {
+          filtered = filtered.filter((e) => e.course?.term_id === activeTerm.id)
+        }
+        setEnrollments(filtered)
       }
       setLoading(false)
     }
@@ -90,6 +107,14 @@ export default function StudentDashboardPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             受講中の講座を確認できます
           </p>
+          {activeTermName && (
+            <div className="mt-2 flex items-center gap-2">
+              <Calendar className="size-4 text-primary" />
+              <Badge variant="outline" className="text-xs font-medium">
+                {activeTermName}
+              </Badge>
+            </div>
+          )}
         </div>
         <Button asChild>
           <Link href="/apply">
