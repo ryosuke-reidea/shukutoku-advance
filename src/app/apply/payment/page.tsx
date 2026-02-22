@@ -76,7 +76,7 @@ function PaymentContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">支払い方法の選択</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">支払い方法の選択</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           お支払い方法を選択してください。
         </p>

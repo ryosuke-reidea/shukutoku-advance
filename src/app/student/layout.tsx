@@ -23,6 +23,7 @@ import {
   LogOut,
   Menu,
   GraduationCap,
+  Home,
 } from 'lucide-react'
 
 const navItems = [
@@ -93,6 +94,15 @@ export default function StudentLayout({
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-3">
+        <Link
+          href="/"
+          onClick={() => setSheetOpen(false)}
+          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+        >
+          <Home className="size-4 shrink-0" />
+          トップページ
+        </Link>
+        <div className="my-1.5 mx-3 h-px bg-border" />
         {navItems.map((item) => {
           const isActive = pathname === item.href
           return (
@@ -118,8 +128,8 @@ export default function StudentLayout({
       {/* Logout */}
       <div className="p-3">
         <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+          variant="outline"
+          className="w-full justify-start gap-3 border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 font-medium"
           onClick={handleSignOut}
         >
           <LogOut className="size-4" />

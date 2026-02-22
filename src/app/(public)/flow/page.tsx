@@ -131,71 +131,174 @@ const STEPS = [
 
 export default function FlowPage() {
   return (
-    <div className="container mx-auto px-4 py-8 space-y-12">
+    <div className="min-h-screen" style={{ backgroundColor: "#fffaf3" }}>
       {/* Page Header */}
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">申し込みの流れ</h1>
-        <p className="text-muted-foreground">
-          5つのステップで簡単にお申し込みいただけます
-        </p>
-      </div>
-
-      {/* Steps */}
-      <div className="max-w-3xl mx-auto space-y-0">
-        {STEPS.map((step, index) => (
-          <div key={step.number} className="relative">
-            {/* Connector Line */}
-            {index < STEPS.length - 1 && (
-              <div className="absolute left-8 top-[5.5rem] bottom-0 w-0.5 bg-border z-0 hidden sm:block" />
-            )}
-
-            <Card className="relative z-10 mb-6">
-              <CardContent className="pt-6">
-                <div className="flex items-start gap-6">
-                  {/* Step Number & Icon */}
-                  <div className="flex-shrink-0 flex flex-col items-center">
-                    <div className="w-16 h-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xl font-bold shadow-md">
-                      {step.number}
-                    </div>
-                    <div className="mt-2 text-primary">{step.icon}</div>
-                  </div>
-
-                  {/* Step Content */}
-                  <div className="flex-1 space-y-2">
-                    <h3 className="text-xl font-semibold">{step.title}</h3>
-                    <p className="text-base text-muted-foreground font-medium">
-                      {step.description}
-                    </p>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {step.details}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        ))}
-      </div>
-
-      {/* CTA Section */}
-      <div className="text-center space-y-6 py-8">
-        <div className="space-y-2">
-          <h2 className="text-2xl font-semibold">
-            さっそく申し込みを始めましょう
-          </h2>
-          <p className="text-muted-foreground">
-            講座を選んで、簡単なステップでお申し込みいただけます
+      <section className="page-header">
+        <div className="relative z-10 max-w-3xl mx-auto space-y-4 animate-fade-in-up">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
+            申し込みの流れ
+          </h1>
+          <div
+            className="w-16 h-1 mx-auto rounded-full"
+            style={{ backgroundColor: "#1b99a4" }}
+          />
+          <p className="text-muted-foreground text-lg">
+            5つのステップで簡単にお申し込みいただけます
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Button asChild size="lg" className="min-w-[200px]">
-            <Link href="/apply">申し込みへ進む</Link>
-          </Button>
-          <Button asChild variant="outline" size="lg" className="min-w-[200px]">
-            <Link href="/courses">講座を見る</Link>
-          </Button>
+      </section>
+
+      {/* Timeline Steps */}
+      <section className="py-16 lg:py-20">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto">
+            {STEPS.map((step, index) => (
+              <div
+                key={step.number}
+                className="relative flex gap-6 sm:gap-8 animate-fade-in-up"
+                style={{ animationDelay: `${index * 150}ms` }}
+              >
+                {/* Timeline Left Column: Line + Circle */}
+                <div className="flex flex-col items-center flex-shrink-0">
+                  {/* Step Number Circle */}
+                  <div
+                    className="relative z-10 w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg"
+                    style={{ backgroundColor: "#1b99a4" }}
+                  >
+                    {step.number}
+                  </div>
+                  {/* Connecting Line */}
+                  {index < STEPS.length - 1 && (
+                    <div
+                      className="w-0.5 flex-1 min-h-[2rem]"
+                      style={{
+                        background:
+                          "linear-gradient(180deg, #1b99a4, #21b8c5, #e0f4f8)",
+                      }}
+                    />
+                  )}
+                </div>
+
+                {/* Step Card */}
+                <div className="flex-1 pb-10">
+                  <Card
+                    className="hover-lift overflow-hidden border-l-0"
+                    style={{
+                      backgroundColor:
+                        index % 2 === 0 ? "white" : "#fffaf3",
+                    }}
+                  >
+                    <CardContent className="pt-6">
+                      <div className="flex items-start gap-4">
+                        {/* Icon in teal circle */}
+                        <div
+                          className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center"
+                          style={{ backgroundColor: "#e0f4f8" }}
+                        >
+                          <span style={{ color: "#1b99a4" }}>{step.icon}</span>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 space-y-2">
+                          <h3 className="text-xl font-bold tracking-tight">
+                            {step.title}
+                          </h3>
+                          <p
+                            className="text-base font-medium"
+                            style={{ color: "#1b99a4" }}
+                          >
+                            {step.description}
+                          </p>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {step.details}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      </section>
+
+      {/* CTA Section */}
+      <section
+        className="py-16 lg:py-20"
+        style={{
+          background:
+            "linear-gradient(135deg, #e0f4f8 0%, #fffaf3 50%, #e0f4f8 100%)",
+        }}
+      >
+        <div className="container mx-auto px-4">
+          <div className="max-w-2xl mx-auto text-center space-y-8 animate-fade-in-up">
+            {/* Decorative element */}
+            <div className="flex justify-center gap-2">
+              <div
+                className="w-2 h-2 rounded-full opacity-40"
+                style={{ backgroundColor: "#1b99a4" }}
+              />
+              <div
+                className="w-3 h-3 rounded-full opacity-60"
+                style={{ backgroundColor: "#1b99a4" }}
+              />
+              <div
+                className="w-2 h-2 rounded-full opacity-40"
+                style={{ backgroundColor: "#1b99a4" }}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+                さっそく申し込みを始めましょう
+              </h2>
+              <p className="text-muted-foreground text-lg">
+                講座を選んで、簡単なステップでお申し込みいただけます
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Button
+                asChild
+                size="lg"
+                className="min-w-[200px] text-white shadow-lg hover:shadow-xl transition-all"
+                style={{ backgroundColor: "#1b99a4" }}
+              >
+                <Link href="/apply">申し込みへ進む</Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="min-w-[200px] hover-lift"
+                style={{
+                  borderColor: "#1b99a4",
+                  color: "#1b99a4",
+                }}
+              >
+                <Link href="/courses">講座を見る</Link>
+              </Button>
+            </div>
+
+            {/* Bottom decorative dots */}
+            <div className="flex justify-center gap-2 pt-4">
+              <div
+                className="w-2 h-2 rounded-full opacity-30"
+                style={{ backgroundColor: "#f6ad3c" }}
+              />
+              <div
+                className="w-2 h-2 rounded-full opacity-50"
+                style={{ backgroundColor: "#1b99a4" }}
+              />
+              <div
+                className="w-2 h-2 rounded-full opacity-30"
+                style={{ backgroundColor: "#f6ad3c" }}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

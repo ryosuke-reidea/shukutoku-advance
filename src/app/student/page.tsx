@@ -19,6 +19,7 @@ import {
 } from '@/lib/constants'
 import type { Enrollment, Course, EnrollmentStatus, PaymentStatus } from '@/lib/types/database'
 import { BookOpen, Clock, MapPin, Plus } from 'lucide-react'
+import { formatTime } from '@/lib/utils'
 
 type EnrollmentWithCourse = Enrollment & {
   course: Course
@@ -154,7 +155,7 @@ export default function StudentDashboardPage() {
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Clock className="size-4 shrink-0" />
                       <span>
-                        {course.day_of_week}曜日 {course.start_time}〜{course.end_time}
+                        {course.day_of_week}曜日 {formatTime(course.start_time)}〜{formatTime(course.end_time)}
                       </span>
                     </div>
                   )}

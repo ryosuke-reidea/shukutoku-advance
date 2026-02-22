@@ -68,6 +68,8 @@ function StudentLoginContent() {
                 <p>
                   {authError === 'auth_failed'
                     ? '認証に失敗しました。もう一度お試しください。'
+                    : authError === 'invalid_domain'
+                    ? '@shukutoku.ed.jp のアカウントでログインしてください。個人のGoogleアカウントではログインできません。'
                     : error || '予期せぬエラーが発生しました。'}
                 </p>
               </div>

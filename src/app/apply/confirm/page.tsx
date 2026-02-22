@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator'
 import type { Course, PaymentMethod } from '@/lib/types/database'
 import { PAYMENT_METHODS, COURSE_TYPES } from '@/lib/constants'
 import { AlertCircle, Loader2, User } from 'lucide-react'
+import { formatTime } from '@/lib/utils'
 
 export default function ConfirmPage() {
   return (
@@ -108,7 +109,7 @@ function ConfirmContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">お申し込み内容の確認</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">お申し込み内容の確認</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           内容をご確認のうえ、お申し込みボタンを押してください。
         </p>
@@ -130,13 +131,13 @@ function ConfirmContent() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">氏名</span>
-            <span className="text-sm font-medium">{userName || '未設定'}</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm text-muted-foreground shrink-0">氏名</span>
+            <span className="text-sm font-medium text-right">{userName || '未設定'}</span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">メールアドレス</span>
-            <span className="text-sm font-medium">{userEmail}</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm text-muted-foreground shrink-0">メールアドレス</span>
+            <span className="text-sm font-medium text-right break-all">{userEmail}</span>
           </div>
         </CardContent>
       </Card>
@@ -160,7 +161,7 @@ function ConfirmContent() {
                       <span>
                         {course.day_of_week}曜{' '}
                         {course.start_time && course.end_time
-                          ? `${course.start_time}~${course.end_time}`
+                          ? `${formatTime(course.start_time)}~${formatTime(course.end_time)}`
                           : ''}
                       </span>
                     )}
@@ -198,7 +199,7 @@ function ConfirmContent() {
           onClick={handleSubmit}
           disabled={submitting}
           size="lg"
-          className="min-w-[200px]"
+          className="w-full sm:w-auto sm:min-w-[200px]"
         >
           {submitting ? (
             <>

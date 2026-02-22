@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { DAYS_OF_WEEK } from '@/lib/constants'
 import type { ClassroomAssignment, Course } from '@/lib/types/database'
 import { DoorOpen } from 'lucide-react'
+import { formatTime } from '@/lib/utils'
 
 type AssignmentWithCourse = ClassroomAssignment & {
   course: Course
@@ -109,7 +110,7 @@ export default function ClassroomPage() {
                         </p>
                         <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                           <span>
-                            {assignment.start_time}〜{assignment.end_time}
+                            {formatTime(assignment.start_time)}〜{formatTime(assignment.end_time)}
                           </span>
                           <span className="font-medium text-foreground">
                             {assignment.classroom}

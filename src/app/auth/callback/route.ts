@@ -10,17 +10,26 @@ export async function GET(request: Request) {
     const supabase = await createServerSupabaseClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      const forwardedHost = request.headers.get('x-forwarded-host')
-      const isLocalEnv = process.env.NODE_ENV === 'development'
-      if (isLocalEnv) {
-        return NextResponse.redirect(`${origin}${next}`)
-      } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`)
-      } else {
-        return NextResponse.redirect(`${origin}${next}`)
+      // Verify domain restriction for student login
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user && next.startsWith('/student') && !user.email?.endsWith('@shukutoku.ed.jp')) {
+        await supabase.auth.signOut()
+        const redirectBase = getRedirectBase(request, origin)
+        return NextResponse.redirect(`${redirectBase}/auth/student-login?error=invalid_domain`)
       }
+
+      const redirectBase = getRedirectBase(request, origin)
+      return NextResponse.redirect(`${redirectBase}${next}`)
     }
   }
 
   return NextResponse.redirect(`${origin}/auth/student-login?error=auth_failed`)
+}
+
+function getRedirectBase(request: Request, origin: string): string {
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const isLocalEnv = process.env.NODE_ENV === 'development'
+  if (isLocalEnv) return origin
+  if (forwardedHost) return `https://${forwardedHost}`
+  return origin
 }
