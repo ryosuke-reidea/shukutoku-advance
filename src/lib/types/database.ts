@@ -87,13 +87,14 @@ export type EnrollmentStatus = 'pending' | 'confirmed' | 'cancelled' | 'complete
 export interface Enrollment {
   id: string
   student_id: string
-  course_id: string
+  course_id: string | null
   term_id: string | null
   status: EnrollmentStatus
   payment_method: PaymentMethod | null
   payment_status: PaymentStatus
   payment_amount: number
   payment_due_date: string | null
+  notes: string | null
   enrolled_at: string
   confirmed_at: string | null
   created_at: string

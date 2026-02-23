@@ -23,8 +23,93 @@ export async function POST(request: Request) {
       )
     }
 
-    // Parse and validate request body
+    // Parse request body
     const body = await request.json()
+
+    // ============================================================
+    // 個別指導の申し込み
+    // ============================================================
+    if (body.type === 'individual') {
+      const { slots, subject, format, friendNames, paymentMethod } = body
+
+      if (!Array.isArray(slots) || slots.length === 0) {
+        return NextResponse.json(
+          { error: '時間帯を選択してください。' },
+          { status: 400 }
+        )
+      }
+
+      if (!subject) {
+        return NextResponse.json(
+          { error: '教科を選択してください。' },
+          { status: 400 }
+        )
+      }
+
+      const validFormats = ['individual_1on1', 'individual_1on2', 'individual_1on3']
+      if (!validFormats.includes(format)) {
+        return NextResponse.json(
+          { error: '有効な受講形態を選択してください。' },
+          { status: 400 }
+        )
+      }
+
+      const validPaymentMethods = ['bank_transfer', 'installment_1', 'installment_2']
+      if (!validPaymentMethods.includes(paymentMethod)) {
+        return NextResponse.json(
+          { error: '有効な支払い方法を選択してください。' },
+          { status: 400 }
+        )
+      }
+
+      // Get active term
+      const { data: activeTerm } = await supabase
+        .from('terms')
+        .select('id')
+        .eq('is_active', true)
+        .single()
+
+      // Create enrollment records for each slot
+      const enrollments = slots.map((slot: { day: string; period: string }) => ({
+        student_id: user.id,
+        course_id: null,
+        term_id: activeTerm?.id ?? null,
+        status: 'pending' as const,
+        payment_method: paymentMethod,
+        payment_status: 'unpaid' as const,
+        payment_amount: 0,
+        notes: JSON.stringify({
+          type: 'individual',
+          day: slot.day,
+          period: slot.period,
+          subject,
+          format,
+          friendNames: friendNames ?? [],
+        }),
+      }))
+
+      const { error: insertError } = await supabase
+        .from('enrollments')
+        .insert(enrollments)
+
+      if (insertError) {
+        console.error('Individual enrollment insert error:', insertError)
+        return NextResponse.json(
+          { error: '申し込みの登録に失敗しました。' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: '個別指導の申し込みが完了しました。',
+        enrollmentCount: enrollments.length,
+      })
+    }
+
+    // ============================================================
+    // 集団授業の申し込み
+    // ============================================================
     const { courseIds, paymentMethod } = body
 
     if (!Array.isArray(courseIds) || courseIds.length === 0) {

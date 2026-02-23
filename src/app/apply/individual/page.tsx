@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import {
-  Check, ArrowRight, ArrowLeft, Clock, BookOpen, Users, CreditCard, ClipboardCheck, CheckCircle2, Home, User, Loader2, AlertCircle,
+  Check, ArrowRight, ArrowLeft, Clock, BookOpen, Users, CreditCard, ClipboardCheck, CheckCircle2, Home, User, Loader2, AlertCircle, X,
 } from 'lucide-react'
 import { SUBJECTS, DAYS_OF_WEEK, PAYMENT_METHODS } from '@/lib/constants'
 import type { PaymentMethod } from '@/lib/types/database'
@@ -32,6 +33,8 @@ const INDIVIDUAL_PERIODS_SATURDAY = [
   { label: '4限', time: '17:40〜19:00' },
 ]
 
+const ALL_DAYS = [...DAYS_OF_WEEK] as string[]
+
 const FORMAT_OPTIONS = [
   { value: 'individual_1on1', label: '1対1', description: '講師1名に対して生徒1名', price: 0 },
   { value: 'individual_1on2', label: '1対2', description: '講師1名に対して生徒2名（友人と一緒に受講）', price: 0 },
@@ -41,45 +44,85 @@ const FORMAT_OPTIONS = [
 const STEP_LABELS = ['時間帯', '教科', '形態', '支払い', '確認', '完了']
 const STEP_ICONS = [Clock, BookOpen, Users, CreditCard, ClipboardCheck, CheckCircle2]
 
+interface SlotSelection {
+  day: string
+  period: string
+}
+
+function getPeriodsForDay(day: string) {
+  return day === '土' ? INDIVIDUAL_PERIODS_SATURDAY : INDIVIDUAL_PERIODS_WEEKDAY
+}
+
+function getPeriodTime(day: string, period: string): string {
+  const periods = getPeriodsForDay(day)
+  const p = periods.find((p) => p.label === period)
+  return p?.time ?? ''
+}
+
+function slotKey(slot: SlotSelection): string {
+  return `${slot.day}-${slot.period}`
+}
+
 export default function IndividualApplyPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="size-8 animate-spin text-muted-foreground" /></div>}>
+      <IndividualApplyContent />
+    </Suspense>
+  )
+}
+
+function IndividualApplyContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   // Step state
   const [step, setStep] = useState(0)
 
-  // Step 1: 時間帯
-  const [selectedDay, setSelectedDay] = useState<string>('')
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('')
+  // Step 0: 時間帯（複数選択）
+  const [selectedSlots, setSelectedSlots] = useState<SlotSelection[]>([])
 
-  // Step 2: 教科
+  // Step 1: 教科
   const [selectedSubject, setSelectedSubject] = useState<string>('')
 
-  // Step 3: 形態
+  // Step 2: 形態
   const [selectedFormat, setSelectedFormat] = useState<string>('individual_1on1')
   const [friendName1, setFriendName1] = useState('')
   const [friendName2, setFriendName2] = useState('')
 
-  // Step 4: 支払い
+  // Step 3: 支払い
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('bank_transfer')
 
-  // Step 5: 確認・送信
+  // Step 4: 確認・送信
   const [userEmail, setUserEmail] = useState('')
   const [userName, setUserName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [authChecking, setAuthChecking] = useState(false)
 
-  // Auth check before step 5
+  // URLパラメータからコマ情報を復元
+  useEffect(() => {
+    const slotsParam = searchParams.get('slots')
+    if (slotsParam) {
+      const parsed = slotsParam.split(',').map((s) => {
+        const [day, period] = s.split('-')
+        return { day, period }
+      }).filter((s) => s.day && s.period)
+      if (parsed.length > 0) {
+        setSelectedSlots(parsed)
+      }
+    }
+  }, [searchParams])
+
+  // Auth check before step 4
   useEffect(() => {
     if (step === 4) {
       setAuthChecking(true)
       const checkAuth = async () => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
-          // Save state to session storage, redirect to login
           sessionStorage.setItem('individual_apply_state', JSON.stringify({
-            selectedDay, selectedPeriod, selectedSubject, selectedFormat,
+            selectedSlots, selectedSubject, selectedFormat,
             friendName1, friendName2, paymentMethod,
           }))
           const redirectUrl = `/apply/individual?restore=true`
@@ -102,8 +145,7 @@ export default function IndividualApplyPage() {
       if (saved) {
         try {
           const state = JSON.parse(saved)
-          setSelectedDay(state.selectedDay || '')
-          setSelectedPeriod(state.selectedPeriod || '')
+          setSelectedSlots(state.selectedSlots || [])
           setSelectedSubject(state.selectedSubject || '')
           setSelectedFormat(state.selectedFormat || 'individual_1on1')
           setFriendName1(state.friendName1 || '')
@@ -116,9 +158,29 @@ export default function IndividualApplyPage() {
     }
   }, [])
 
+  const toggleSlot = (day: string, period: string) => {
+    setSelectedSlots((prev) => {
+      const key = slotKey({ day, period })
+      const exists = prev.some((s) => slotKey(s) === key)
+      if (exists) {
+        return prev.filter((s) => slotKey(s) !== key)
+      } else {
+        return [...prev, { day, period }]
+      }
+    })
+  }
+
+  const removeSlot = (slot: SlotSelection) => {
+    setSelectedSlots((prev) => prev.filter((s) => slotKey(s) !== slotKey(slot)))
+  }
+
+  const isSlotSelected = (day: string, period: string): boolean => {
+    return selectedSlots.some((s) => s.day === day && s.period === period)
+  }
+
   const canProceed = () => {
     switch (step) {
-      case 0: return selectedDay !== '' && selectedPeriod !== ''
+      case 0: return selectedSlots.length > 0
       case 1: return selectedSubject !== ''
       case 2:
         if (selectedFormat === 'individual_1on2') return friendName1.trim() !== ''
@@ -146,8 +208,7 @@ export default function IndividualApplyPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'individual',
-          day: selectedDay,
-          period: selectedPeriod,
+          slots: selectedSlots,
           subject: selectedSubject,
           format: selectedFormat,
           friendNames: [friendName1, friendName2].filter(Boolean),
@@ -167,15 +228,16 @@ export default function IndividualApplyPage() {
     }
   }
 
-  const periodLabel = (() => {
-    if (!selectedDay || !selectedPeriod) return ''
-    const isSaturday = selectedDay === '土'
-    const periods = isSaturday ? INDIVIDUAL_PERIODS_SATURDAY : INDIVIDUAL_PERIODS_WEEKDAY
-    const p = periods.find((p) => p.label === selectedPeriod)
-    return p ? `${selectedDay}曜 ${p.label} (${p.time})` : `${selectedDay}曜 ${selectedPeriod}`
-  })()
+  const sortedSlots = [...selectedSlots].sort((a, b) => {
+    const dayOrder = ALL_DAYS.indexOf(a.day) - ALL_DAYS.indexOf(b.day)
+    if (dayOrder !== 0) return dayOrder
+    return a.period.localeCompare(b.period)
+  })
 
   const formatLabel = FORMAT_OPTIONS.find((f) => f.value === selectedFormat)?.label ?? ''
+
+  // 最大の時限数（全行表示用）
+  const maxPeriods = Math.max(INDIVIDUAL_PERIODS_WEEKDAY.length, INDIVIDUAL_PERIODS_SATURDAY.length)
 
   return (
     <div className="space-y-6">
@@ -218,55 +280,123 @@ export default function IndividualApplyPage() {
         </nav>
       </div>
 
-      {/* ===== Step 0: 時間帯選択 ===== */}
+      {/* ===== Step 0: 時間帯選択（複数コマ） ===== */}
       {step === 0 && (
         <div className="space-y-6">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">受講時間帯を選択</h1>
-            <p className="mt-1 text-sm text-muted-foreground">ご希望の曜日と時限を選んでください。</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              ご希望の曜日・時限をタップして選択してください。<span className="font-medium text-[#1b99a4]">複数選択可能</span>です。
+            </p>
           </div>
 
+          {/* 時間割グリッド */}
           <Card>
-            <CardHeader><CardTitle className="text-base">曜日</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {DAYS_OF_WEEK.map((day) => (
-                  <button
-                    key={day}
-                    onClick={() => { setSelectedDay(day); setSelectedPeriod('') }}
-                    className={cn(
-                      'py-3 rounded-xl text-sm font-bold transition-all border-2',
-                      selectedDay === day
-                        ? 'border-[#1b99a4] bg-[#e0f4f8] text-[#1b99a4]'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                    )}
-                  >
-                    {day}曜
-                  </button>
-                ))}
+            <CardContent className="pt-6 px-2 sm:px-6">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse" style={{ minWidth: '600px' }}>
+                  <thead>
+                    <tr>
+                      <th className="py-2 px-2 text-xs font-bold text-white text-center rounded-tl-lg" style={{ background: 'linear-gradient(135deg, #1b99a4, #21c5d3)', width: '80px' }}>
+                        時限
+                      </th>
+                      {ALL_DAYS.map((day, i) => (
+                        <th
+                          key={day}
+                          className={cn('py-2 px-2 text-xs font-bold text-white text-center', i === ALL_DAYS.length - 1 && 'rounded-tr-lg')}
+                          style={{ background: day === '土' ? 'linear-gradient(135deg, #f6ad3c, #f9c76b)' : 'linear-gradient(135deg, #1b99a4, #21c5d3)' }}
+                        >
+                          {day}曜
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: maxPeriods }, (_, periodIdx) => {
+                      const periodNum = periodIdx + 1
+                      const weekdayPeriod = INDIVIDUAL_PERIODS_WEEKDAY[periodIdx]
+                      const saturdayPeriod = INDIVIDUAL_PERIODS_SATURDAY[periodIdx]
+                      const label = weekdayPeriod?.label ?? saturdayPeriod?.label ?? `${periodNum}限`
+
+                      return (
+                        <tr key={periodIdx} className={periodIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                          <td className="py-2 px-2 text-center border-r border-slate-100">
+                            <div className="text-sm font-bold text-[#1b99a4]">{label}</div>
+                            <div className="text-[9px] text-muted-foreground">
+                              {weekdayPeriod?.time ?? saturdayPeriod?.time ?? ''}
+                            </div>
+                          </td>
+                          {ALL_DAYS.map((day) => {
+                            const periods = getPeriodsForDay(day)
+                            const periodInfo = periods[periodIdx]
+                            const isAvailable = !!periodInfo
+                            const isSelected = isAvailable && isSlotSelected(day, periodInfo.label)
+
+                            if (!isAvailable) {
+                              return (
+                                <td key={day} className="py-2 px-1 text-center border-r border-slate-100 last:border-r-0">
+                                  <div className="flex items-center justify-center h-12">
+                                    <div className="w-4 h-[2px] rounded-full bg-slate-200" />
+                                  </div>
+                                </td>
+                              )
+                            }
+
+                            return (
+                              <td key={day} className="py-2 px-1 text-center border-r border-slate-100 last:border-r-0">
+                                <button
+                                  onClick={() => toggleSlot(day, periodInfo.label)}
+                                  className={cn(
+                                    'w-full h-12 rounded-xl text-xs font-bold transition-all duration-200 border-2',
+                                    isSelected
+                                      ? 'border-[#1b99a4] bg-[#e0f4f8] text-[#1b99a4] shadow-md scale-[1.02]'
+                                      : 'border-slate-200 bg-white text-slate-400 hover:border-[#1b99a4]/40 hover:bg-[#e0f4f8]/30'
+                                  )}
+                                >
+                                  {isSelected ? (
+                                    <Check className="size-5 mx-auto" />
+                                  ) : (
+                                    <span className="text-[10px]">{day === '土' ? saturdayPeriod?.time : weekdayPeriod?.time}</span>
+                                  )}
+                                </button>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>
 
-          {selectedDay && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">時限</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {(selectedDay === '土' ? INDIVIDUAL_PERIODS_SATURDAY : INDIVIDUAL_PERIODS_WEEKDAY).map((period) => (
-                    <button
-                      key={period.label}
-                      onClick={() => setSelectedPeriod(period.label)}
-                      className={cn(
-                        'py-3 px-2 rounded-xl text-center transition-all border-2',
-                        selectedPeriod === period.label
-                          ? 'border-[#f6ad3c] bg-[#fff3e0] text-[#e09520]'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                      )}
+          {/* 選択済みコマ一覧 */}
+          {selectedSlots.length > 0 && (
+            <Card className="border-[#1b99a4]/30 bg-[#e0f4f8]/20">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#1b99a4] text-white text-xs font-bold">
+                    <Check className="size-3" />
+                    {selectedSlots.length}コマ選択中
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {sortedSlots.map((slot) => (
+                    <div
+                      key={slotKey(slot)}
+                      className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-full bg-white border border-[#1b99a4]/30 text-sm"
                     >
-                      <div className="text-sm font-bold">{period.label}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{period.time}</div>
-                    </button>
+                      <span className="font-bold text-[#1b99a4]">{slot.day}曜</span>
+                      <span className="text-slate-600">{slot.period}</span>
+                      <span className="text-[10px] text-muted-foreground">({getPeriodTime(slot.day, slot.period)})</span>
+                      <button
+                        onClick={() => removeSlot(slot)}
+                        className="ml-0.5 p-0.5 rounded-full hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </CardContent>
@@ -456,9 +586,20 @@ export default function IndividualApplyPage() {
               <Card>
                 <CardHeader><CardTitle className="text-base">申し込み内容</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">時間帯</span>
-                    <span className="text-sm font-medium">{periodLabel}</span>
+                  <div>
+                    <span className="text-sm text-muted-foreground">選択コマ</span>
+                    <div className="mt-2 space-y-1.5">
+                      {sortedSlots.map((slot) => (
+                        <div key={slotKey(slot)} className="flex items-center gap-2 text-sm">
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#e0f4f8] border border-[#1b99a4]/20">
+                            <Clock className="size-3 text-[#1b99a4]" />
+                            <span className="font-bold text-[#1b99a4]">{slot.day}曜</span>
+                            <span className="text-slate-700">{slot.period}</span>
+                            <span className="text-xs text-muted-foreground">({getPeriodTime(slot.day, slot.period)})</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <Separator />
                   <div className="flex items-center justify-between">
@@ -525,7 +666,16 @@ export default function IndividualApplyPage() {
               <div className="rounded-lg bg-slate-50 p-4 text-left">
                 <h3 className="mb-3 text-sm font-semibold text-slate-700">お申し込み内容</h3>
                 <dl className="space-y-2 text-sm">
-                  <div className="flex justify-between"><dt className="text-muted-foreground">時間帯</dt><dd className="font-medium">{periodLabel}</dd></div>
+                  <div>
+                    <dt className="text-muted-foreground mb-1">選択コマ（{sortedSlots.length}コマ）</dt>
+                    <dd className="space-y-1">
+                      {sortedSlots.map((slot) => (
+                        <div key={slotKey(slot)} className="font-medium">
+                          {slot.day}曜 {slot.period} ({getPeriodTime(slot.day, slot.period)})
+                        </div>
+                      ))}
+                    </dd>
+                  </div>
                   <div className="flex justify-between"><dt className="text-muted-foreground">教科</dt><dd className="font-medium">{selectedSubject}</dd></div>
                   <div className="flex justify-between"><dt className="text-muted-foreground">形態</dt><dd className="font-medium">{formatLabel}</dd></div>
                   <div className="flex justify-between"><dt className="text-muted-foreground">支払い方法</dt><dd className="font-medium">{PAYMENT_METHODS[paymentMethod]}</dd></div>
