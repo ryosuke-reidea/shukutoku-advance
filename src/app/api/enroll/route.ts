@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
+const VALID_PAYMENT_METHODS = ['bank_transfer', 'account_transfer_lump', 'account_transfer_installment']
+
 export async function POST(request: Request) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -30,7 +32,9 @@ export async function POST(request: Request) {
     // 個別指導の申し込み
     // ============================================================
     if (body.type === 'individual') {
-      const { slots, subject, format, friendNames, paymentMethod } = body
+      const { slots, subjects, courseCount, format, friendNames, paymentMethod } = body
+      // 後方互換: 旧APIの subject (単数) もサポート
+      const subjectList: string[] = Array.isArray(subjects) ? subjects : (body.subject ? [body.subject] : [])
 
       if (!Array.isArray(slots) || slots.length === 0) {
         return NextResponse.json(
@@ -39,7 +43,7 @@ export async function POST(request: Request) {
         )
       }
 
-      if (!subject) {
+      if (subjectList.length === 0) {
         return NextResponse.json(
           { error: '教科を選択してください。' },
           { status: 400 }
@@ -54,8 +58,7 @@ export async function POST(request: Request) {
         )
       }
 
-      const validPaymentMethods = ['bank_transfer', 'installment_1', 'installment_2']
-      if (!validPaymentMethods.includes(paymentMethod)) {
+      if (!VALID_PAYMENT_METHODS.includes(paymentMethod)) {
         return NextResponse.json(
           { error: '有効な支払い方法を選択してください。' },
           { status: 400 }
@@ -82,7 +85,8 @@ export async function POST(request: Request) {
           type: 'individual',
           day: slot.day,
           period: slot.period,
-          subject,
+          subjects: subjectList,
+          courseCount: courseCount ?? subjectList.length,
           format,
           friendNames: friendNames ?? [],
         }),
@@ -119,8 +123,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const validPaymentMethods = ['bank_transfer', 'installment_1', 'installment_2']
-    if (!validPaymentMethods.includes(paymentMethod)) {
+    if (!VALID_PAYMENT_METHODS.includes(paymentMethod)) {
       return NextResponse.json(
         { error: '有効な支払い方法を選択してください。' },
         { status: 400 }

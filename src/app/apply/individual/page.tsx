@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import {
-  Check, ArrowRight, ArrowLeft, Clock, BookOpen, Users, CreditCard, ClipboardCheck, CheckCircle2, Home, User, Loader2, AlertCircle, X,
+  Check, ArrowRight, ArrowLeft, Clock, BookOpen, Users, CreditCard, ClipboardCheck, CheckCircle2, Home, User, Loader2, AlertCircle, X, Hash,
 } from 'lucide-react'
 import { SUBJECTS, DAYS_OF_WEEK, PAYMENT_METHODS } from '@/lib/constants'
 import type { PaymentMethod } from '@/lib/types/database'
@@ -41,8 +41,8 @@ const FORMAT_OPTIONS = [
   { value: 'individual_1on3', label: '1対3', description: '講師1名に対して生徒3名（友人と一緒に受講）', price: 0 },
 ]
 
-const STEP_LABELS = ['時間帯', '教科', '形態', '支払い', '確認', '完了']
-const STEP_ICONS = [Clock, BookOpen, Users, CreditCard, ClipboardCheck, CheckCircle2]
+const STEP_LABELS = ['時間帯', '講座数', '教科', '形態', '支払い', '確認', '完了']
+const STEP_ICONS = [Clock, Hash, BookOpen, Users, CreditCard, ClipboardCheck, CheckCircle2]
 
 interface SlotSelection {
   day: string
@@ -82,18 +82,21 @@ function IndividualApplyContent() {
   // Step 0: 時間帯（複数選択）
   const [selectedSlots, setSelectedSlots] = useState<SlotSelection[]>([])
 
-  // Step 1: 教科
-  const [selectedSubject, setSelectedSubject] = useState<string>('')
+  // Step 1: 講座数
+  const [courseCount, setCourseCount] = useState<number>(1)
 
-  // Step 2: 形態
+  // Step 2: 教科（複数選択、講座数に応じて）
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
+
+  // Step 3: 形態
   const [selectedFormat, setSelectedFormat] = useState<string>('individual_1on1')
   const [friendName1, setFriendName1] = useState('')
   const [friendName2, setFriendName2] = useState('')
 
-  // Step 3: 支払い
+  // Step 4: 支払い
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('bank_transfer')
 
-  // Step 4: 確認・送信
+  // Step 5: 確認・送信
   const [userEmail, setUserEmail] = useState('')
   const [userName, setUserName] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -114,15 +117,15 @@ function IndividualApplyContent() {
     }
   }, [searchParams])
 
-  // Auth check before step 4
+  // Auth check before step 5 (confirm)
   useEffect(() => {
-    if (step === 4) {
+    if (step === 5) {
       setAuthChecking(true)
       const checkAuth = async () => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
           sessionStorage.setItem('individual_apply_state', JSON.stringify({
-            selectedSlots, selectedSubject, selectedFormat,
+            selectedSlots, courseCount, selectedSubjects, selectedFormat,
             friendName1, friendName2, paymentMethod,
           }))
           const redirectUrl = `/apply/individual?restore=true`
@@ -146,12 +149,13 @@ function IndividualApplyContent() {
         try {
           const state = JSON.parse(saved)
           setSelectedSlots(state.selectedSlots || [])
-          setSelectedSubject(state.selectedSubject || '')
+          setCourseCount(state.courseCount || 1)
+          setSelectedSubjects(state.selectedSubjects || [])
           setSelectedFormat(state.selectedFormat || 'individual_1on1')
           setFriendName1(state.friendName1 || '')
           setFriendName2(state.friendName2 || '')
           setPaymentMethod(state.paymentMethod || 'bank_transfer')
-          setStep(4)
+          setStep(5)
           sessionStorage.removeItem('individual_apply_state')
         } catch { /* ignore */ }
       }
@@ -178,21 +182,42 @@ function IndividualApplyContent() {
     return selectedSlots.some((s) => s.day === day && s.period === period)
   }
 
+  const toggleSubject = (subject: string) => {
+    setSelectedSubjects((prev) => {
+      if (prev.includes(subject)) {
+        return prev.filter((s) => s !== subject)
+      }
+      if (prev.length >= courseCount) {
+        // 上限に達している場合は最初のを外して新しいのを追加
+        return [...prev.slice(1), subject]
+      }
+      return [...prev, subject]
+    })
+  }
+
+  // 講座数が変更されたとき、選択済み教科を調整
+  useEffect(() => {
+    if (selectedSubjects.length > courseCount) {
+      setSelectedSubjects((prev) => prev.slice(0, courseCount))
+    }
+  }, [courseCount])
+
   const canProceed = () => {
     switch (step) {
       case 0: return selectedSlots.length > 0
-      case 1: return selectedSubject !== ''
-      case 2:
+      case 1: return courseCount >= 1 && courseCount <= 5
+      case 2: return selectedSubjects.length === courseCount
+      case 3:
         if (selectedFormat === 'individual_1on2') return friendName1.trim() !== ''
         if (selectedFormat === 'individual_1on3') return friendName1.trim() !== '' && friendName2.trim() !== ''
         return true
-      case 3: return true
+      case 4: return true
       default: return true
     }
   }
 
   const handleNext = () => {
-    if (step < 5 && canProceed()) setStep(step + 1)
+    if (step < 6 && canProceed()) setStep(step + 1)
   }
 
   const handleBack = () => {
@@ -209,7 +234,8 @@ function IndividualApplyContent() {
         body: JSON.stringify({
           type: 'individual',
           slots: selectedSlots,
-          subject: selectedSubject,
+          subjects: selectedSubjects,
+          courseCount,
           format: selectedFormat,
           friendNames: [friendName1, friendName2].filter(Boolean),
           paymentMethod,
@@ -221,7 +247,7 @@ function IndividualApplyContent() {
         setSubmitting(false)
         return
       }
-      setStep(5)
+      setStep(6)
     } catch {
       setError('ネットワークエラーが発生しました。')
       setSubmitting(false)
@@ -244,7 +270,7 @@ function IndividualApplyContent() {
       {/* ステッパー */}
       <div className="border-b bg-white -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-4 -mt-6 sm:-mt-8 mb-2">
         <nav aria-label="個別指導申し込み手順">
-          <ol className="flex items-center justify-between max-w-2xl mx-auto">
+          <ol className="flex items-center justify-between max-w-3xl mx-auto">
             {STEP_LABELS.map((label, index) => {
               const isCompleted = index < step
               const isCurrent = index === step
@@ -284,10 +310,13 @@ function IndividualApplyContent() {
       {step === 0 && (
         <div className="space-y-6">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">受講時間帯を選択</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">受講可能な時間帯を全て選択</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              ご希望の曜日・時限をタップして選択してください。<span className="font-medium text-[#1b99a4]">複数選択可能</span>です。
+              受講可能な曜日・時限を<span className="font-bold text-[#1b99a4]">全てタップして選択</span>してください。
             </p>
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <strong>ポイント：</strong>受講できる時間帯は全て選択してください。選択肢が多いほど、スケジュール調整がしやすくなります。
+            </div>
           </div>
 
           {/* 時間割グリッド */}
@@ -405,38 +434,112 @@ function IndividualApplyContent() {
         </div>
       )}
 
-      {/* ===== Step 1: 教科選択 ===== */}
+      {/* ===== Step 1: 講座数選択 ===== */}
       {step === 1 && (
         <div className="space-y-6">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">教科を選択</h1>
-            <p className="mt-1 text-sm text-muted-foreground">受講したい教科を選んでください。</p>
+            <h1 className="text-xl sm:text-2xl font-bold">講座数を選択</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              受講したい講座の数を選んでください。講座数に応じて教科を選択できます。
+            </p>
           </div>
           <Card>
             <CardContent className="pt-6">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {SUBJECTS.map((subject) => (
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                {[1, 2, 3, 4, 5].map((num) => (
                   <button
-                    key={subject}
-                    onClick={() => setSelectedSubject(subject)}
+                    key={num}
+                    onClick={() => setCourseCount(num)}
                     className={cn(
-                      'py-4 rounded-xl text-base font-bold transition-all border-2',
-                      selectedSubject === subject
-                        ? 'border-[#1b99a4] bg-[#e0f4f8] text-[#1b99a4] shadow-md'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      'py-6 rounded-xl text-center transition-all border-2',
+                      courseCount === num
+                        ? 'border-[#1b99a4] bg-[#e0f4f8] shadow-md'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
                     )}
                   >
-                    {subject}
+                    <div className={cn(
+                      'text-3xl font-bold',
+                      courseCount === num ? 'text-[#1b99a4]' : 'text-slate-600'
+                    )}>
+                      {num}
+                    </div>
+                    <div className={cn(
+                      'text-sm mt-1',
+                      courseCount === num ? 'text-[#1b99a4]' : 'text-muted-foreground'
+                    )}>
+                      講座
+                    </div>
                   </button>
                 ))}
               </div>
             </CardContent>
           </Card>
+
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+            <strong>{courseCount}講座</strong>を選択しました。次のステップで<strong>{courseCount}教科</strong>を選びます。
+          </div>
         </div>
       )}
 
-      {/* ===== Step 2: 形態選択 ===== */}
+      {/* ===== Step 2: 教科選択（複数） ===== */}
       {step === 2 && (
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">教科を選択</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              受講したい教科を<span className="font-bold text-[#1b99a4]">{courseCount}つ</span>選んでください。
+            </p>
+          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {SUBJECTS.map((subject) => {
+                  const isSelected = selectedSubjects.includes(subject)
+                  const isDisabled = !isSelected && selectedSubjects.length >= courseCount
+                  return (
+                    <button
+                      key={subject}
+                      onClick={() => !isDisabled && toggleSubject(subject)}
+                      disabled={isDisabled}
+                      className={cn(
+                        'py-4 rounded-xl text-base font-bold transition-all border-2 relative',
+                        isSelected
+                          ? 'border-[#1b99a4] bg-[#e0f4f8] text-[#1b99a4] shadow-md'
+                          : isDisabled
+                            ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      )}
+                    >
+                      {isSelected && (
+                        <div className="absolute top-1.5 right-1.5 size-5 rounded-full bg-[#1b99a4] flex items-center justify-center">
+                          <Check className="size-3 text-white" />
+                        </div>
+                      )}
+                      {subject}
+                    </button>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className={cn(
+            'rounded-lg border px-3 py-2 text-sm',
+            selectedSubjects.length === courseCount
+              ? 'border-green-200 bg-green-50 text-green-800'
+              : 'border-amber-200 bg-amber-50 text-amber-800'
+          )}>
+            {selectedSubjects.length === courseCount ? (
+              <><Check className="size-4 inline mr-1" /><strong>{selectedSubjects.join('・')}</strong>を選択しました。</>
+            ) : (
+              <>あと<strong>{courseCount - selectedSubjects.length}教科</strong>選択してください。（{selectedSubjects.length}/{courseCount}）</>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== Step 3: 形態選択 ===== */}
+      {step === 3 && (
         <div className="space-y-6">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">受講形態を選択</h1>
@@ -509,8 +612,8 @@ function IndividualApplyContent() {
         </div>
       )}
 
-      {/* ===== Step 3: 支払い方法 ===== */}
-      {step === 3 && (
+      {/* ===== Step 4: 支払い方法 ===== */}
+      {step === 4 && (
         <div className="space-y-6">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">支払い方法の選択</h1>
@@ -544,8 +647,8 @@ function IndividualApplyContent() {
         </div>
       )}
 
-      {/* ===== Step 4: 確認 ===== */}
-      {step === 4 && (
+      {/* ===== Step 5: 確認 ===== */}
+      {step === 5 && (
         <div className="space-y-6">
           {authChecking ? (
             <div className="flex items-center justify-center py-20">
@@ -587,7 +690,7 @@ function IndividualApplyContent() {
                 <CardHeader><CardTitle className="text-base">申し込み内容</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div>
-                    <span className="text-sm text-muted-foreground">選択コマ</span>
+                    <span className="text-sm text-muted-foreground">受講可能時間帯</span>
                     <div className="mt-2 space-y-1.5">
                       {sortedSlots.map((slot) => (
                         <div key={slotKey(slot)} className="flex items-center gap-2 text-sm">
@@ -603,8 +706,13 @@ function IndividualApplyContent() {
                   </div>
                   <Separator />
                   <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">講座数</span>
+                    <span className="text-sm font-medium">{courseCount}講座</span>
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">教科</span>
-                    <span className="text-sm font-medium">{selectedSubject}</span>
+                    <span className="text-sm font-medium">{selectedSubjects.join('・')}</span>
                   </div>
                   <Separator />
                   <div className="flex items-center justify-between">
@@ -651,8 +759,8 @@ function IndividualApplyContent() {
         </div>
       )}
 
-      {/* ===== Step 5: 完了 ===== */}
-      {step === 5 && (
+      {/* ===== Step 6: 完了 ===== */}
+      {step === 6 && (
         <div className="flex justify-center py-8">
           <Card className="w-full max-w-lg text-center">
             <CardHeader className="items-center">
@@ -667,7 +775,7 @@ function IndividualApplyContent() {
                 <h3 className="mb-3 text-sm font-semibold text-slate-700">お申し込み内容</h3>
                 <dl className="space-y-2 text-sm">
                   <div>
-                    <dt className="text-muted-foreground mb-1">選択コマ（{sortedSlots.length}コマ）</dt>
+                    <dt className="text-muted-foreground mb-1">受講可能時間帯（{sortedSlots.length}コマ）</dt>
                     <dd className="space-y-1">
                       {sortedSlots.map((slot) => (
                         <div key={slotKey(slot)} className="font-medium">
@@ -676,7 +784,8 @@ function IndividualApplyContent() {
                       ))}
                     </dd>
                   </div>
-                  <div className="flex justify-between"><dt className="text-muted-foreground">教科</dt><dd className="font-medium">{selectedSubject}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted-foreground">講座数</dt><dd className="font-medium">{courseCount}講座</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted-foreground">教科</dt><dd className="font-medium">{selectedSubjects.join('・')}</dd></div>
                   <div className="flex justify-between"><dt className="text-muted-foreground">形態</dt><dd className="font-medium">{formatLabel}</dd></div>
                   <div className="flex justify-between"><dt className="text-muted-foreground">支払い方法</dt><dd className="font-medium">{PAYMENT_METHODS[paymentMethod]}</dd></div>
                 </dl>
@@ -693,8 +802,8 @@ function IndividualApplyContent() {
         </div>
       )}
 
-      {/* ===== ナビゲーションボタン（Step 0-3） ===== */}
-      {step < 4 && (
+      {/* ===== ナビゲーションボタン（Step 0-4） ===== */}
+      {step < 5 && (
         <div className="flex items-center justify-between pt-4">
           <Button variant="outline" onClick={handleBack} disabled={step === 0}>
             <ArrowLeft className="size-4" />
@@ -706,7 +815,7 @@ function IndividualApplyContent() {
           </Button>
         </div>
       )}
-      {step === 4 && !authChecking && (
+      {step === 5 && !authChecking && (
         <div className="flex items-center justify-start pt-2">
           <Button variant="outline" onClick={handleBack}>
             <ArrowLeft className="size-4" />
