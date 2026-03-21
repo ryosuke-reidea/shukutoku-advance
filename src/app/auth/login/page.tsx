@@ -57,6 +57,9 @@ export default function AdminLoginPage() {
           case 'tutor':
             router.push('/tutor')
             break
+          case 'individual_instructor':
+            router.push('/individual-instructor')
+            break
           default:
             router.push('/')
         }
@@ -73,7 +76,7 @@ export default function AdminLoginPage() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">管理者ログイン</CardTitle>
           <CardDescription>
-            管理者・講師・チューターの方はこちらからログインしてください
+            管理者・講師・チューター・個別講師の方はこちらからログインしてください
           </CardDescription>
         </CardHeader>
         <CardContent>

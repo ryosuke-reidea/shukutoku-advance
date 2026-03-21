@@ -28,13 +28,26 @@ function ApplyLoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const coursesParam = searchParams.get('courses') ?? ''
+  const paymentParam = searchParams.get('payment') ?? ''
+  const nextParam = searchParams.get('next') ?? ''
   const supabase = createClient()
+
+  // ログイン後のリダイレクト先を決定
+  const getRedirectAfterLogin = (): string => {
+    // nextパラメータが指定されている場合はそちらを使用
+    if (nextParam) return nextParam
+    // 支払い方法が指定されている場合は確認ページへ
+    if (paymentParam) return `/apply/confirm?courses=${coursesParam}&payment=${paymentParam}`
+    // それ以外は支払いページへ
+    return `/apply/payment?courses=${coursesParam}`
+  }
 
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        router.push(`/apply/payment?courses=${coursesParam}`)
+        // 既にログイン済みなら次のページへ
+        router.push(getRedirectAfterLogin())
       } else {
         setLoading(false)
       }
@@ -47,13 +60,15 @@ function ApplyLoginContent() {
     setLoginLoading(true)
     setError(null)
 
+    const redirectAfterLogin = getRedirectAfterLogin()
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         queryParams: {
           hd: 'shukutoku.ed.jp',
         },
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(`/apply/payment?courses=${coursesParam}`)}`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectAfterLogin)}`,
       },
     })
 

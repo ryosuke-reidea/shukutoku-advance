@@ -1,3 +1,9 @@
+/**
+ * 共通定数
+ * ⚠️ SHARED FILE: このファイルは shukutoku-advance と admin-shukutoku-advance で同期が必要です
+ * 変更時は両方のプロジェクトに反映してください
+ */
+
 export const SUBJECTS = [
   '英語',
   '数学',
@@ -25,8 +31,8 @@ export const COURSE_TYPES = {
 
 export const PAYMENT_METHODS = {
   bank_transfer: '銀行振込',
-  account_transfer_lump: '口座振替（一括）',
-  account_transfer_installment: '口座振替（分割）',
+  installment_1: '口座振替（一括）',
+  installment_2: '口座振替（分割）',
 } as const
 
 export const PAYMENT_STATUSES = {
@@ -63,3 +69,15 @@ export const COMPANY_INFO = {
   established: '2024年5月',
   capital: '300万円',
 } as const
+
+// --- 学年別カテゴリマッピング ---
+
+/** 高校学年ごとの対象カテゴリslugs */
+export const SENIOR_GRADE_CATEGORIES: Record<string, string[]> = {
+  '高1': ['general', 'recommendation'],
+  '高2': ['general', 'recommendation', 'ryugata'],
+  '高3': ['general', 'recommendation'],
+}
+
+export const SENIOR_GRADES = ['高3', '高2', '高1'] as const
+export const JUNIOR_GRADES = ['中3', '中2', '中1'] as const

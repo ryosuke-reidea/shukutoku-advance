@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Noto_Sans_JP, Noto_Serif_JP, Geist_Mono } from "next/font/google";
+import { ScrollToTop } from "@/components/scroll-to-top";
 import "./globals.css";
 
 const notoSansJP = Noto_Sans_JP({
@@ -41,6 +43,7 @@ export default function RootLayout({
       <body
         className={`${notoSansJP.variable} ${notoSerifJP.variable} ${geistMono.variable} font-sans antialiased`}
       >
+        <Suspense fallback={null}><ScrollToTop /></Suspense>
         {children}
       </body>
     </html>

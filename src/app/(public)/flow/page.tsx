@@ -1,13 +1,13 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
-export const metadata = {
-  title: "申し込みの流れ | 淑徳アドバンス",
-  description: "淑徳アドバンスへの申し込み手順をご案内します。",
-};
-
-const STEPS = [
+const ALL_STEPS = [
   {
     number: 1,
     title: "講座選択",
@@ -30,6 +30,7 @@ const STEPS = [
         <path d="m9 9.5 2 2 4-4" />
       </svg>
     ),
+    requiresLogin: false,
   },
   {
     number: 2,
@@ -54,13 +55,14 @@ const STEPS = [
         <line x1="15" x2="3" y1="12" y2="12" />
       </svg>
     ),
+    requiresLogin: true,
   },
   {
     number: 3,
     title: "支払い方法選択",
     description: "お支払い方法を選択します",
     details:
-      "クレジットカード、銀行振込など、ご希望のお支払い方法をお選びください。定額制プランをご希望の場合は、こちらで設定できます。",
+      "銀行振込、口座振替（一括・分割）など、ご希望のお支払い方法をお選びください。定額制プランをご希望の場合は、こちらで設定できます。",
     icon: (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -77,6 +79,7 @@ const STEPS = [
         <line x1="2" x2="22" y1="10" y2="10" />
       </svg>
     ),
+    requiresLogin: false,
   },
   {
     number: 4,
@@ -103,6 +106,7 @@ const STEPS = [
         <polyline points="10 9 9 9 8 9" />
       </svg>
     ),
+    requiresLogin: false,
   },
   {
     number: 5,
@@ -126,10 +130,31 @@ const STEPS = [
         <polyline points="22 4 12 14.01 9 11.01" />
       </svg>
     ),
+    requiresLogin: false,
   },
 ];
 
 export default function FlowPage() {
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsLoggedIn(!!user);
+    };
+    checkAuth();
+  }, []);
+
+  // ログイン済みならログインステップをスキップ
+  const steps = isLoggedIn
+    ? ALL_STEPS.filter((s) => !s.requiresLogin)
+    : ALL_STEPS;
+
+  // ステップ番号を振り直す
+  const numberedSteps = steps.map((s, i) => ({ ...s, number: i + 1 }));
+  const stepCountText = `${numberedSteps.length}つ`;
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#fffaf3" }}>
       {/* Page Header */}
@@ -143,18 +168,56 @@ export default function FlowPage() {
             style={{ backgroundColor: "#1b99a4" }}
           />
           <p className="text-muted-foreground text-lg">
-            5つのステップで簡単にお申し込みいただけます
+            {stepCountText}のステップで簡単にお申し込みいただけます
           </p>
         </div>
       </section>
+
+      {/* ログイン済みバッジ */}
+      {isLoggedIn && (
+        <div className="container mx-auto px-4 pt-8">
+          <div className="max-w-3xl mx-auto animate-fade-in-up">
+            <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+              <div className="flex size-8 items-center justify-center rounded-full bg-green-100">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-green-600"
+                >
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-green-800">
+                  ログイン済みです
+                </p>
+                <p className="text-xs text-green-600">
+                  ログインステップは自動的にスキップされます
+                </p>
+              </div>
+              <Badge className="ml-auto bg-green-100 text-green-800 border-green-200 hover:bg-green-100">
+                {numberedSteps.length}ステップ
+              </Badge>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Timeline Steps */}
       <section className="py-16 lg:py-20">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto">
-            {STEPS.map((step, index) => (
+            {numberedSteps.map((step, index) => (
               <div
-                key={step.number}
+                key={step.title}
                 className="relative flex gap-6 sm:gap-8 animate-fade-in-up"
                 style={{ animationDelay: `${index * 150}ms` }}
               >
@@ -168,7 +231,7 @@ export default function FlowPage() {
                     {step.number}
                   </div>
                   {/* Connecting Line */}
-                  {index < STEPS.length - 1 && (
+                  {index < numberedSteps.length - 1 && (
                     <div
                       className="w-0.5 flex-1 min-h-[2rem]"
                       style={{

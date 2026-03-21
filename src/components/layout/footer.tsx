@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Phone, Mail, MapPin, ExternalLink } from "lucide-react";
 
 const navLinks = [
@@ -35,23 +36,14 @@ export function Footer() {
             {/* Column 1: Logo & Company Info */}
             <div className="space-y-5">
               <div>
-                <Link href="/" className="group inline-flex items-baseline gap-1">
-                  <span
-                    className="text-2xl font-bold tracking-wide transition-colors duration-200 group-hover:opacity-80"
-                    style={{
-                      color: "#1b99a4",
-                      fontFamily:
-                        "'Noto Serif JP', 'Yu Mincho', 'Hiragino Mincho ProN', serif",
-                    }}
-                  >
-                    淑徳
-                  </span>
-                  <span
-                    className="text-base font-medium tracking-widest text-slate-200 transition-colors duration-200 group-hover:opacity-80"
-                    style={{ letterSpacing: "0.15em" }}
-                  >
-                    アドバンス
-                  </span>
+                <Link href="/" className="group inline-block transition-opacity duration-200 hover:opacity-80">
+                  <Image
+                    src="/logo.svg"
+                    alt="淑徳アドバンス"
+                    width={180}
+                    height={35}
+                    className="h-9 w-auto brightness-0 invert"
+                  />
                 </Link>
               </div>
 

@@ -544,6 +544,25 @@
     animation: fadeInUp 0.7s ease-out forwards;
   }
 
+  /* Sticky first column for timetable horizontal scroll */
+  .timetable-sticky-col th:first-child,
+  .timetable-sticky-col td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background-color: white;
+  }
+
+  .timetable-sticky-col th:first-child {
+    z-index: 11;
+    /* th already has inline gradient background; this ensures fallback */
+  }
+
+  .timetable-sticky-col td:first-child {
+    /* Subtle shadow to separate sticky col from scrolling content */
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+  }
+
   /* Wave divider for hero section */
   .wave-divider {
     position: absolute;

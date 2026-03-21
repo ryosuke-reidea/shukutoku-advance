@@ -3,63 +3,17 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-
-// ============================================================
-// 時限定義
-// ============================================================
-const WEEKDAY_PERIODS = [
-  { label: "1限", time: "15:30〜16:50" },
-  { label: "2限", time: "17:00〜18:20" },
-  { label: "3限", time: "18:30〜19:50" },
-] as const;
-
-const SATURDAY_PERIODS = [
-  { label: "1限", time: "13:10〜14:30" },
-  { label: "2限", time: "14:40〜16:00" },
-  { label: "3限", time: "16:10〜17:30" },
-  { label: "4限", time: "17:40〜19:00" },
-] as const;
-
-const WEEKDAYS = ["月", "火", "水", "木", "金"] as const;
-const ALL_DAYS = ["月", "火", "水", "木", "金", "土"] as const;
-
-// 個別指導用の時限定義
-const INDIVIDUAL_PERIODS_WEEKDAY = [
-  { label: "1限", time: "15:30〜16:50" },
-  { label: "2限", time: "17:00〜18:20" },
-  { label: "3限", time: "18:30〜19:50" },
-] as const;
-
-const INDIVIDUAL_PERIODS_SATURDAY = [
-  { label: "1限", time: "13:10〜14:30" },
-  { label: "2限", time: "14:40〜16:00" },
-  { label: "3限", time: "16:10〜17:30" },
-  { label: "4限", time: "17:40〜19:00" },
-] as const;
-
-// ============================================================
-// カテゴリ色 & ラベル
-// ============================================================
-const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string; gradient: string }> = {
-  general:        { bg: "#e0f4f8", border: "#1b99a4", text: "#1b99a4", gradient: "linear-gradient(135deg, #1b99a4, #21c5d3)" },
-  recommendation: { bg: "#fff3e0", border: "#f6ad3c", text: "#e09520", gradient: "linear-gradient(135deg, #f6ad3c, #f9c76b)" },
-  ryugata:        { bg: "#e8f5e9", border: "#4caf50", text: "#2e7d32", gradient: "linear-gradient(135deg, #4caf50, #66bb6a)" },
-  junior:         { bg: "#e3f2fd", border: "#2196f3", text: "#1565c0", gradient: "linear-gradient(135deg, #2196f3, #42a5f5)" },
-};
-
-const INDIVIDUAL_COLOR = {
-  bg: "#f3e8ff",
-  border: "#9333ea",
-  text: "#7c3aed",
-  gradient: "linear-gradient(135deg, #9333ea, #a855f7)",
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  general: "一般",
-  recommendation: "推薦",
-  ryugata: "留型",
-  junior: "中学",
-};
+import {
+  WEEKDAYS,
+  ALL_DAYS,
+  WEEKDAY_PERIODS,
+  SATURDAY_PERIODS,
+  INDIVIDUAL_PERIODS_WEEKDAY,
+  INDIVIDUAL_PERIODS_SATURDAY,
+  CATEGORY_COLORS,
+  INDIVIDUAL_COLOR,
+  CATEGORY_LABELS,
+} from "@/lib/timetable-constants";
 
 // ============================================================
 // 型定義
@@ -85,11 +39,8 @@ interface TimetableSlot {
   } | null;
 }
 
-interface CategoryInfo {
-  id: string;
-  slug: string;
-  name: string;
-}
+import type { CategoryInfo } from "@/lib/types/shared-types";
+import { SENIOR_GRADE_CATEGORIES, SENIOR_GRADES, JUNIOR_GRADES } from "@/lib/constants";
 
 interface IndividualSlot {
   day: string;
@@ -98,18 +49,6 @@ interface IndividualSlot {
 
 type SchoolTab = "junior" | "senior";
 
-// ============================================================
-// 高校の学年ごとに表示するカテゴリ
-// ============================================================
-const SENIOR_GRADE_CATEGORIES: Record<string, string[]> = {
-  "高1": ["general", "recommendation"],
-  "高2": ["general", "recommendation", "ryugata"],
-  "高3": ["general", "recommendation"],
-};
-
-// 上の学年から表示
-const JUNIOR_GRADES = ["中3", "中2", "中1"];
-const SENIOR_GRADES = ["高3", "高2", "高1"];
 
 // ============================================================
 // ヘルパー関数
@@ -164,33 +103,31 @@ export default function TimetablePage() {
     return selectedIndividualSlots.some((s) => s.day === day && s.period === period);
   }, [selectedIndividualSlots]);
 
-  const handleApply = useCallback(() => {
-    if (selectedCourseIds.size === 0) return;
+  const handleUnifiedApply = useCallback(() => {
+    if (selectedCourseIds.size === 0 && selectedIndividualSlots.length === 0) return;
     const params = new URLSearchParams();
-    params.set("courses", Array.from(selectedCourseIds).join(","));
-    router.push(`/apply/login?${params.toString()}`);
-  }, [selectedCourseIds, router]);
-
-  const handleIndividualApply = useCallback(() => {
-    if (selectedIndividualSlots.length === 0) return;
-    const slotsParam = selectedIndividualSlots
-      .map((s) => `${s.day}-${s.period}`)
-      .join(",");
-    router.push(`/apply/individual?slots=${encodeURIComponent(slotsParam)}`);
-  }, [selectedIndividualSlots, router]);
+    if (selectedCourseIds.size > 0) {
+      params.set("courses", Array.from(selectedCourseIds).join(","));
+    }
+    if (selectedIndividualSlots.length > 0) {
+      const slotsParam = selectedIndividualSlots
+        .map((s) => `${s.day}-${s.period}`)
+        .join(",");
+      params.set("slots", slotsParam);
+    }
+    router.push(`/apply/individual?${params.toString()}`);
+  }, [selectedCourseIds, selectedIndividualSlots, router]);
 
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClient();
 
-      // まずアクティブな会期を取得
       const { data: activeTerm } = await supabase
         .from("terms")
         .select("id")
         .eq("is_active", true)
         .single();
 
-      // 時間割スロットを取得（会期でフィルタ：coursesのterm_idで絞り込む）
       const slotsQuery = supabase
         .from("timetable_slots")
         .select(`
@@ -208,7 +145,6 @@ export default function TimetablePage() {
           .order("display_order"),
       ]);
 
-      // アクティブな会期でフィルタ（course.term_id で絞り込み）
       let filteredSlots = (slotsRes.data as TimetableSlot[]) ?? [];
       if (activeTerm?.id) {
         filteredSlots = filteredSlots.filter(
@@ -272,38 +208,34 @@ export default function TimetablePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#fffaf3" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#FAFCFD" }}>
         <div className="flex flex-col items-center gap-4">
-          <div className="relative w-12 h-12">
+          <div className="relative w-10 h-10">
             <div
               className="absolute inset-0 rounded-full animate-spin"
-              style={{ border: "3px solid #e0f4f8", borderTopColor: "#1b99a4" }}
-            />
-            <div
-              className="absolute inset-2 rounded-full animate-spin"
-              style={{ border: "3px solid #fff3e0", borderTopColor: "#f6ad3c", animationDirection: "reverse", animationDuration: "0.8s" }}
+              style={{ border: "2px solid #E0F7FA", borderTopColor: "#21B8C5" }}
             />
           </div>
-          <span className="text-sm text-muted-foreground tracking-wide">読み込み中...</span>
+          <span className="text-sm" style={{ color: "#21B8C5" }}>読み込み中...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#fffaf3" }}>
+    <div className="min-h-screen" style={{ backgroundColor: "#FAFCFD" }}>
       {/* ========== Page Header ========== */}
-      <section className="page-header">
+      <section className="page-header" style={{ background: "linear-gradient(180deg, #E8F8FA 0%, #FAFCFD 100%)" }}>
         <div className="relative z-10 max-w-3xl mx-auto space-y-4 animate-fade-in-up">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight" style={{ color: "#21B8C5" }}>
             時間割
           </h1>
           <div
             className="w-16 h-1 mx-auto rounded-full"
-            style={{ backgroundColor: "#1b99a4" }}
+            style={{ background: "linear-gradient(90deg, #21B8C5, #F6AD3C)" }}
           />
-          <p className="text-muted-foreground text-lg">
-            各学年・カテゴリごとの時間割をご確認いただけます
+          <p className="text-stone-600 text-base">
+            講座をタップして、そのまま申し込みへ進めます
           </p>
         </div>
       </section>
@@ -312,8 +244,8 @@ export default function TimetablePage() {
       <div
         className="sticky top-0 z-40 border-b backdrop-blur-xl"
         style={{
-          backgroundColor: "rgba(255, 250, 243, 0.92)",
-          borderBottomColor: "#e0f4f8",
+          backgroundColor: "rgba(255, 255, 255, 0.97)",
+          borderBottomColor: "#21B8C520",
         }}
       >
         <div className="container mx-auto px-4">
@@ -321,30 +253,28 @@ export default function TimetablePage() {
           <div className="flex justify-center gap-3 pt-4 pb-3">
             {(
               [
-                { key: "senior" as SchoolTab, label: "高校", icon: "🏫" },
-                { key: "junior" as SchoolTab, label: "中学", icon: "📚" },
+                { key: "senior" as SchoolTab, label: "高校" },
+                { key: "junior" as SchoolTab, label: "中学" },
               ] as const
             ).map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => handleTabChange(tab.key)}
-                className="relative px-8 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 overflow-hidden"
+                className="relative px-8 py-2.5 rounded-full text-sm font-bold transition-all duration-300"
                 style={
                   activeTab === tab.key
                     ? {
-                        background: "linear-gradient(135deg, #1b99a4, #21c5d3)",
+                        background: "linear-gradient(135deg, #21B8C5, #42D8E8)",
                         color: "white",
-                        boxShadow: "0 4px 16px rgba(27,153,164,0.35)",
-                        transform: "translateY(-1px)",
+                        boxShadow: "0 4px 14px rgba(33,184,197,0.35)",
                       }
                     : {
-                        backgroundColor: "white",
-                        color: "#1b99a4",
-                        border: "2px solid #e0f4f8",
+                        backgroundColor: "#f0f8f9",
+                        color: "#21B8C5",
+                        border: "2px solid #21B8C530",
                       }
                 }
               >
-                <span className="mr-1.5">{tab.icon}</span>
                 {tab.label}
               </button>
             ))}
@@ -352,38 +282,32 @@ export default function TimetablePage() {
 
           {/* Grade Navigation Pills */}
           <div className="flex justify-center gap-2 pb-3">
-            {currentGradesWithIndividual.map((grade) => (
-              <button
-                key={grade}
-                onClick={() => scrollToGrade(grade)}
-                className="relative px-5 py-1.5 rounded-full text-xs font-bold transition-all duration-300"
-                style={
-                  activeGrade === grade
-                    ? grade === "個別"
+            {currentGradesWithIndividual.map((grade) => {
+              const isActive = activeGrade === grade;
+              const isIndividual = grade === "個別";
+              return (
+                <button
+                  key={grade}
+                  onClick={() => scrollToGrade(grade)}
+                  className="px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300"
+                  style={
+                    isActive
                       ? {
-                          background: INDIVIDUAL_COLOR.gradient,
+                          background: isIndividual ? INDIVIDUAL_COLOR.gradient : "linear-gradient(135deg, #21B8C5, #42D8E8)",
                           color: "white",
-                          boxShadow: `0 2px 10px ${INDIVIDUAL_COLOR.border}35`,
+                          boxShadow: isIndividual ? `0 2px 10px ${INDIVIDUAL_COLOR.border}40` : "0 2px 10px rgba(33,184,197,0.30)",
                         }
                       : {
-                          background: "linear-gradient(135deg, #f6ad3c, #f9c76b)",
-                          color: "white",
-                          boxShadow: "0 2px 10px rgba(246,173,60,0.35)",
+                          backgroundColor: isIndividual ? `${INDIVIDUAL_COLOR.bg}` : "#f0f8f9",
+                          color: isIndividual ? INDIVIDUAL_COLOR.text : "#21B8C5",
+                          border: `1.5px solid ${isIndividual ? INDIVIDUAL_COLOR.border + '30' : '#21B8C525'}`,
                         }
-                    : grade === "個別"
-                      ? {
-                          backgroundColor: INDIVIDUAL_COLOR.bg,
-                          color: INDIVIDUAL_COLOR.text,
-                        }
-                      : {
-                          backgroundColor: "#f5f0e8",
-                          color: "#8b7355",
-                        }
-                }
-              >
-                {grade}
-              </button>
-            ))}
+                  }
+                >
+                  {grade}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -416,7 +340,7 @@ export default function TimetablePage() {
               );
             })}
 
-            {/* ========== 個別指導セクション（学年一覧の後に表示） ========== */}
+            {/* ========== 個別指導セクション ========== */}
             <div
               ref={(el) => { gradeRefs.current["個別"] = el; }}
               className="scroll-mt-36"
@@ -428,109 +352,73 @@ export default function TimetablePage() {
               />
             </div>
           </div>
-
         </div>
       </section>
 
-      {/* ========== 申し込みフローティングバー ========== */}
+      {/* ========== 申し込みフローティングバー（統一） ========== */}
       {hasAnySelection && (
         <div
           className="fixed bottom-0 left-0 right-0 z-50 border-t backdrop-blur-xl animate-fade-in-up"
           style={{
-            backgroundColor: "rgba(255, 255, 255, 0.95)",
-            borderTopColor: "#1b99a4",
-            boxShadow: "0 -4px 24px rgba(27,153,164,0.15)",
+            backgroundColor: "rgba(255, 255, 255, 0.98)",
+            borderTopColor: "#21B8C520",
+            boxShadow: "0 -4px 24px rgba(33,184,197,0.10)",
           }}
         >
-          <div className="container mx-auto px-4 py-3 space-y-2">
-            {/* 集団授業の選択 */}
-            {selectedCourseIds.size > 0 && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+          <div className="container mx-auto px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              {/* 選択サマリー */}
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                {selectedCourseIds.size > 0 && (
                   <div
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-bold text-white"
-                    style={{ background: "linear-gradient(135deg, #1b99a4, #21c5d3)" }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-white shrink-0"
+                    style={{ background: "linear-gradient(135deg, #21B8C5, #42D8E8)", boxShadow: "0 2px 8px rgba(33,184,197,0.30)" }}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                       <path d="M9 12l2 2 4-4" />
                       <circle cx="12" cy="12" r="10" />
                     </svg>
-                    {selectedCourseIds.size}講座選択中
+                    集団 {selectedCourseIds.size}講座
                   </div>
-                  <div className="text-sm text-muted-foreground hidden md:block">
-                    {(() => {
-                      const selectedSlots = timetableSlots.filter(
-                        (s) => selectedCourseIds.has(s.course_id)
-                      );
-                      const uniqueCourses = new Map<string, TimetableSlot>();
-                      selectedSlots.forEach((s) => {
-                        if (!uniqueCourses.has(s.course_id)) uniqueCourses.set(s.course_id, s);
-                      });
-                      const totalPrice = Array.from(uniqueCourses.values()).reduce(
-                        (sum, s) => sum + (s.course?.price || 0), 0
-                      );
-                      return `合計: ¥${totalPrice.toLocaleString()}`;
-                    })()}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSelectedCourseIds(new Set())}
-                    className="px-4 py-2 rounded-xl text-sm font-bold transition-all"
-                    style={{ color: "#8b7355", backgroundColor: "#f5f0e8" }}
-                  >
-                    クリア
-                  </button>
-                  <button
-                    onClick={handleApply}
-                    className="px-6 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:shadow-lg"
-                    style={{
-                      background: "linear-gradient(135deg, #f6ad3c, #e09520)",
-                      boxShadow: "0 4px 16px rgba(246,173,60,0.35)",
-                    }}
-                  >
-                    この講座で申し込む →
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* 個別指導の選択 */}
-            {selectedIndividualSlots.length > 0 && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+                )}
+                {selectedIndividualSlots.length > 0 && (
                   <div
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-bold text-white"
-                    style={{ background: INDIVIDUAL_COLOR.gradient }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-white shrink-0"
+                    style={{ background: INDIVIDUAL_COLOR.gradient, boxShadow: `0 2px 8px ${INDIVIDUAL_COLOR.border}30` }}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                       <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                       <circle cx="12" cy="7" r="4" />
                     </svg>
-                    個別指導 {selectedIndividualSlots.length}コマ選択中
+                    個別 {selectedIndividualSlots.length}コマ
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSelectedIndividualSlots([])}
-                    className="px-4 py-2 rounded-xl text-sm font-bold transition-all"
-                    style={{ color: "#8b7355", backgroundColor: "#f5f0e8" }}
-                  >
-                    クリア
-                  </button>
-                  <button
-                    onClick={handleIndividualApply}
-                    className="px-6 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:shadow-lg"
-                    style={{
-                      background: INDIVIDUAL_COLOR.gradient,
-                      boxShadow: `0 4px 16px ${INDIVIDUAL_COLOR.border}35`,
-                    }}
-                  >
-                    個別指導を申し込む →
-                  </button>
-                </div>
+                )}
               </div>
-            )}
+
+              {/* ボタン群 */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setSelectedCourseIds(new Set());
+                    setSelectedIndividualSlots([]);
+                  }}
+                  className="px-4 py-2 rounded-full text-sm font-semibold transition-all text-stone-500 hover:bg-stone-100"
+                  style={{ backgroundColor: "#f0f0f0" }}
+                >
+                  クリア
+                </button>
+                <button
+                  onClick={handleUnifiedApply}
+                  className="px-8 py-3 rounded-full text-sm font-bold text-white transition-all hover:scale-105 active:scale-95"
+                  style={{
+                    background: "linear-gradient(135deg, #21B8C5, #42D8E8)",
+                    boxShadow: "0 4px 20px rgba(33,184,197,0.45)",
+                  }}
+                >
+                  まとめて申し込む →
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -563,30 +451,24 @@ function GradeSection({
       {/* Grade Header */}
       <div className="flex items-center gap-4 mb-10">
         <div
-          className="relative w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-xl overflow-hidden"
+          className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg"
           style={{
-            background: "linear-gradient(135deg, #1b99a4, #21c5d3)",
-            boxShadow: "0 8px 24px rgba(27,153,164,0.3)",
+            background: "linear-gradient(135deg, #21B8C5, #42D8E8)",
+            boxShadow: "0 6px 20px rgba(33,184,197,0.30)",
           }}
         >
-          <div
-            className="absolute inset-0 opacity-20"
-            style={{
-              background: "radial-gradient(circle at 30% 30%, white 0%, transparent 60%)",
-            }}
-          />
-          <span className="relative">{grade}</span>
+          {grade}
         </div>
         <div>
-          <h2 className="text-2xl font-black tracking-tight">{grade}</h2>
-          <div className="flex items-center gap-2 mt-1">
+          <h2 className="text-2xl font-bold tracking-tight" style={{ color: "#2A2A2A" }}>{grade}</h2>
+          <div className="flex items-center gap-1.5 mt-1.5">
             {categorySlugs.map((s) => {
               const c = CATEGORY_COLORS[s] ?? CATEGORY_COLORS.general;
               return (
                 <span
                   key={s}
-                  className="inline-flex items-center px-3 py-0.5 rounded-full text-[11px] font-bold"
-                  style={{ backgroundColor: c.bg, color: c.text }}
+                  className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold"
+                  style={{ background: c.gradient, color: "white" }}
                 >
                   {CATEGORY_LABELS[s] ?? s}
                 </span>
@@ -594,7 +476,7 @@ function GradeSection({
             })}
           </div>
         </div>
-        <div className="flex-1 h-[2px]" style={{ background: "linear-gradient(90deg, #1b99a4 0%, rgba(27,153,164,0.1) 60%, transparent 100%)" }} />
+        <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, #21B8C530, transparent)" }} />
       </div>
 
       {/* カテゴリごとに時間割を表示 */}
@@ -607,23 +489,18 @@ function GradeSection({
           <div key={catSlug} className="mb-12">
             <div className="flex items-center gap-3 mb-5">
               <div
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white"
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold shadow-sm"
                 style={{
                   background: catColor.gradient,
-                  boxShadow: `0 4px 12px ${catColor.border}40`,
+                  color: "white",
+                  boxShadow: `0 2px 8px ${catColor.border}25`,
                 }}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
                 {catLabel}
               </div>
               <div
-                className="flex-1 h-[2px]"
-                style={{ background: `linear-gradient(90deg, ${catColor.border}50, transparent)` }}
+                className="flex-1 h-px"
+                style={{ background: `linear-gradient(90deg, ${catColor.border}30, transparent)` }}
               />
             </div>
 
@@ -632,14 +509,14 @@ function GradeSection({
               <div className="flex items-center gap-2 mb-3">
                 <div
                   className="w-6 h-6 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: catColor.bg }}
+                  style={{ backgroundColor: catColor.bg, border: `1px solid ${catColor.border}20` }}
                 >
-                  <svg className="w-3.5 h-3.5" style={{ color: catColor.text }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <svg className="w-3.5 h-3.5" style={{ color: catColor.border }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                     <line x1="3" y1="10" x2="21" y2="10" />
                   </svg>
                 </div>
-                <h3 className="text-sm font-bold" style={{ color: catColor.text }}>
+                <h3 className="text-sm font-semibold" style={{ color: catColor.text }}>
                   月〜金曜日
                 </h3>
               </div>
@@ -656,14 +533,14 @@ function GradeSection({
               />
             </div>
 
-            {/* 土曜テーブル（コンパクト横並び） */}
+            {/* 土曜テーブル */}
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <div
                   className="w-6 h-6 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: "#fff3e0" }}
+                  style={{ backgroundColor: "#FFF6E5", border: "1px solid #F6AD3C20" }}
                 >
-                  <svg className="w-3.5 h-3.5" style={{ color: "#e09520" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <svg className="w-3.5 h-3.5" style={{ color: "#F6AD3C" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="5" />
                     <line x1="12" y1="1" x2="12" y2="3" />
                     <line x1="12" y1="21" x2="12" y2="23" />
@@ -675,7 +552,7 @@ function GradeSection({
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
                   </svg>
                 </div>
-                <h3 className="text-sm font-bold" style={{ color: "#e09520" }}>
+                <h3 className="text-sm font-semibold" style={{ color: "#B87A00" }}>
                   土曜日
                 </h3>
               </div>
@@ -716,61 +593,49 @@ function IndividualSection({
       {/* Section Header */}
       <div className="flex items-center gap-4 mb-10">
         <div
-          className="relative w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-lg overflow-hidden"
+          className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-sm leading-tight text-center"
           style={{
             background: INDIVIDUAL_COLOR.gradient,
-            boxShadow: "0 8px 24px rgba(147,51,234,0.3)",
+            boxShadow: `0 6px 20px ${INDIVIDUAL_COLOR.border}30`,
           }}
         >
-          <div
-            className="absolute inset-0 opacity-20"
-            style={{
-              background: "radial-gradient(circle at 30% 30%, white 0%, transparent 60%)",
-            }}
-          />
-          <span className="relative text-sm leading-tight text-center">個別<br/>指導</span>
+          個別<br/>指導
         </div>
         <div>
-          <h2 className="text-2xl font-black tracking-tight">個別指導</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            ご希望の時間帯をタップして選択してください（<span className="font-bold" style={{ color: INDIVIDUAL_COLOR.text }}>複数選択可</span>）
+          <h2 className="text-2xl font-bold tracking-tight" style={{ color: "#2A2A2A" }}>個別指導</h2>
+          <p className="text-sm text-stone-500 mt-1">
+            ご希望の時間帯をタップして選択（<span className="font-bold" style={{ color: INDIVIDUAL_COLOR.text }}>複数選択可</span>）
           </p>
         </div>
-        <div className="flex-1 h-[2px]" style={{ background: `linear-gradient(90deg, ${INDIVIDUAL_COLOR.border} 0%, rgba(147,51,234,0.1) 60%, transparent 100%)` }} />
+        <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${INDIVIDUAL_COLOR.border}30, transparent)` }} />
       </div>
 
       {/* 個別指導 時間割グリッド */}
       <div
-        className="rounded-2xl overflow-hidden border"
+        className="rounded-xl overflow-hidden"
         style={{
-          borderColor: `${INDIVIDUAL_COLOR.border}25`,
-          boxShadow: `0 4px 20px ${INDIVIDUAL_COLOR.border}10, 0 1px 3px rgba(0,0,0,0.04)`,
+          border: `1px solid ${INDIVIDUAL_COLOR.border}20`,
+          boxShadow: `0 2px 12px ${INDIVIDUAL_COLOR.border}08`,
         }}
       >
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse" style={{ minWidth: "680px" }}>
+          <table className="w-full border-collapse timetable-sticky-col" style={{ minWidth: "680px" }}>
             <thead>
               <tr>
                 <th
-                  className="py-3 px-3 text-xs font-bold text-white text-center"
-                  style={{ background: INDIVIDUAL_COLOR.gradient, width: "100px" }}
+                  className="py-2.5 px-3 text-xs font-bold text-center tracking-wide border-r"
+                  style={{ background: INDIVIDUAL_COLOR.gradient, color: "white", width: "100px", borderRightColor: "rgba(255,255,255,0.3)" }}
                 >
-                  <div className="flex flex-col items-center gap-0.5">
-                    <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
-                    <span>時限</span>
-                  </div>
+                  時限
                 </th>
-                {ALL_DAYS.map((day) => (
+                {ALL_DAYS.map((day, i) => (
                   <th
                     key={day}
-                    className="py-3 px-2 text-xs font-bold text-white text-center"
+                    className={`py-2.5 px-2 text-xs font-bold text-center tracking-wide ${i < ALL_DAYS.length - 1 ? "border-r" : ""}`}
                     style={{
-                      background: day === "土"
-                        ? "linear-gradient(135deg, #f6ad3c, #f9c76b)"
-                        : INDIVIDUAL_COLOR.gradient,
+                      background: INDIVIDUAL_COLOR.gradient,
+                      color: "white",
+                      borderRightColor: "rgba(255,255,255,0.3)",
                       minWidth: "90px",
                     }}
                   >
@@ -788,22 +653,22 @@ function IndividualSection({
                 return (
                   <tr
                     key={periodIdx}
-                    className="transition-colors"
                     style={{
-                      backgroundColor: periodIdx % 2 === 0 ? "white" : "#fafaf8",
+                      backgroundColor: periodIdx % 2 === 0 ? "white" : "#f8fafb",
+                      borderTop: `1px solid ${INDIVIDUAL_COLOR.border}12`,
                     }}
                   >
                     <td
-                      className="py-3 px-2 text-center border-r"
+                      className="py-2.5 px-2 text-center border-r"
                       style={{
-                        backgroundColor: `${INDIVIDUAL_COLOR.bg}80`,
-                        borderRightColor: `${INDIVIDUAL_COLOR.border}20`,
+                        backgroundColor: periodIdx % 2 === 0 ? `${INDIVIDUAL_COLOR.bg}50` : `${INDIVIDUAL_COLOR.bg}30`,
+                        borderRightColor: `${INDIVIDUAL_COLOR.border}15`,
                       }}
                     >
-                      <div className="text-sm font-black" style={{ color: INDIVIDUAL_COLOR.text }}>
+                      <div className="text-sm font-bold" style={{ color: INDIVIDUAL_COLOR.text }}>
                         {label}
                       </div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5 font-medium">
+                      <div className="text-[11px] text-stone-600 mt-0.5">
                         {weekdayPeriod?.time ?? saturdayPeriod?.time ?? ""}
                       </div>
                     </td>
@@ -821,7 +686,7 @@ function IndividualSection({
                             style={{ borderRightColor: `${INDIVIDUAL_COLOR.border}10` }}
                           >
                             <div className="flex items-center justify-center py-4">
-                              <div className="w-5 h-[2px] rounded-full" style={{ backgroundColor: `${INDIVIDUAL_COLOR.border}15` }} />
+                              <div className="w-5 h-px rounded-full bg-stone-200" />
                             </div>
                           </td>
                         );
@@ -835,18 +700,17 @@ function IndividualSection({
                         >
                           <button
                             onClick={() => onToggleIndividualSlot(day, periodInfo.label)}
-                            className="w-full py-4 rounded-xl transition-all duration-200 border-2 cursor-pointer group"
+                            className="w-full py-4 rounded-xl transition-all duration-200 border-2 cursor-pointer group hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
                             style={
                               isSelected
                                 ? {
                                     borderColor: INDIVIDUAL_COLOR.border,
                                     backgroundColor: INDIVIDUAL_COLOR.bg,
-                                    boxShadow: `0 2px 8px ${INDIVIDUAL_COLOR.border}30`,
-                                    transform: "scale(1.02)",
+                                    boxShadow: `0 3px 12px ${INDIVIDUAL_COLOR.border}25`,
                                   }
                                 : {
-                                    borderColor: "#e2e8f0",
-                                    backgroundColor: "white",
+                                    borderColor: `${INDIVIDUAL_COLOR.border}15`,
+                                    backgroundColor: `${INDIVIDUAL_COLOR.bg}40`,
                                   }
                             }
                           >
@@ -854,7 +718,7 @@ function IndividualSection({
                               <div className="flex items-center justify-center">
                                 <div
                                   className="w-6 h-6 rounded-full flex items-center justify-center text-white"
-                                  style={{ background: INDIVIDUAL_COLOR.gradient }}
+                                  style={{ backgroundColor: INDIVIDUAL_COLOR.text }}
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
                                     <path d="M5 13l4 4L19 7" />
@@ -862,7 +726,7 @@ function IndividualSection({
                                 </div>
                               </div>
                             ) : (
-                              <div className="text-[10px] text-slate-400 group-hover:text-purple-400 transition-colors">
+                              <div className="text-xs text-stone-500 group-hover:text-stone-600 transition-colors">
                                 選択
                               </div>
                             )}
@@ -880,11 +744,11 @@ function IndividualSection({
 
       {/* 個別指導 選択済みチップ */}
       {selectedIndividualSlots.length > 0 && (
-        <div className="mt-4 p-4 rounded-xl border" style={{ borderColor: `${INDIVIDUAL_COLOR.border}30`, backgroundColor: `${INDIVIDUAL_COLOR.bg}30` }}>
+        <div className="mt-4 p-4 rounded-xl border" style={{ borderColor: `${INDIVIDUAL_COLOR.border}15`, backgroundColor: `${INDIVIDUAL_COLOR.bg}30` }}>
           <div className="flex items-center gap-2 mb-3">
             <div
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-xs font-bold"
-              style={{ background: INDIVIDUAL_COLOR.gradient }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-white text-xs font-semibold"
+              style={{ backgroundColor: INDIVIDUAL_COLOR.text }}
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
                 <path d="M5 13l4 4L19 7" />
@@ -905,17 +769,16 @@ function IndividualSection({
                 return (
                   <div
                     key={individualSlotKey(slot)}
-                    className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-full bg-white text-sm"
-                    style={{ border: `1px solid ${INDIVIDUAL_COLOR.border}30` }}
+                    className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-md bg-white text-sm border border-stone-200"
                   >
-                    <span className="font-bold" style={{ color: INDIVIDUAL_COLOR.text }}>{slot.day}曜</span>
-                    <span className="text-slate-600">{slot.period}</span>
+                    <span className="font-semibold" style={{ color: INDIVIDUAL_COLOR.text }}>{slot.day}曜</span>
+                    <span className="text-stone-600">{slot.period}</span>
                     {periodInfo && (
-                      <span className="text-[10px] text-muted-foreground">({periodInfo.time})</span>
+                      <span className="text-[10px] text-stone-600">({periodInfo.time})</span>
                     )}
                     <button
                       onClick={() => onToggleIndividualSlot(slot.day, slot.period)}
-                      className="ml-0.5 p-0.5 rounded-full hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                      className="ml-0.5 p-0.5 rounded hover:bg-red-50 text-stone-500 hover:text-red-500 transition-colors"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                         <line x1="18" y1="6" x2="6" y2="18" />
@@ -951,44 +814,42 @@ function TimetableTable({
   filteredSlots: TimetableSlot[];
   getSlots: (slots: TimetableSlot[], day: string, period: number) => TimetableSlot[];
   getCategorySlug: (categoryId: string) => string;
-  catColor: { bg: string; border: string; text: string; gradient: string };
+  catColor: { bg: string; border: string; text: string; gradient: string; headerBg: string; headerText: string };
   isSaturday: boolean;
   selectedCourseIds: Set<string>;
   onToggleCourse: (courseId: string) => void;
 }) {
   return (
     <div
-      className="rounded-2xl overflow-hidden border"
+      className="rounded-xl overflow-hidden"
       style={{
-        borderColor: `${catColor.border}25`,
-        boxShadow: `0 4px 20px ${catColor.border}10, 0 1px 3px rgba(0,0,0,0.04)`,
+        border: `1px solid ${catColor.border}20`,
+        boxShadow: `0 2px 12px ${catColor.border}08`,
       }}
     >
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse" style={{ minWidth: isSaturday ? "380px" : "680px" }}>
+        <table className="w-full border-collapse timetable-sticky-col" style={{ minWidth: isSaturday ? "380px" : "680px" }}>
           <thead>
             <tr>
               <th
-                className="py-3 px-3 text-xs font-bold text-white text-center"
+                className="py-3 px-3 text-xs font-bold text-center tracking-wide border-r"
                 style={{
                   background: catColor.gradient,
+                  color: "white",
                   width: "100px",
+                  borderRightColor: "rgba(255,255,255,0.25)",
                 }}
               >
-                <div className="flex flex-col items-center gap-0.5">
-                  <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
-                  <span>時限</span>
-                </div>
+                時限
               </th>
-              {days.map((day) => (
+              {days.map((day, i) => (
                 <th
                   key={day}
-                  className="py-3 px-2 text-xs font-bold text-white text-center"
+                  className={`py-3 px-2 text-xs font-bold text-center tracking-wide ${i < days.length - 1 ? "border-r" : ""}`}
                   style={{
                     background: catColor.gradient,
+                    color: "white",
+                    borderRightColor: "rgba(255,255,255,0.25)",
                     minWidth: isSaturday ? "260px" : "110px",
                   }}
                 >
@@ -1001,36 +862,36 @@ function TimetableTable({
             {periods.map((period, periodIndex) => (
               <tr
                 key={period.label}
-                className="transition-colors"
                 style={{
-                  backgroundColor: periodIndex % 2 === 0 ? "white" : "#fafaf8",
+                  backgroundColor: periodIndex % 2 === 0 ? "white" : "#f8fafb",
+                  borderTop: `1px solid ${catColor.border}12`,
                 }}
               >
                 {/* 時限セル */}
                 <td
                   className="py-3 px-2 text-center border-r"
                   style={{
-                    backgroundColor: `${catColor.bg}80`,
-                    borderRightColor: `${catColor.border}20`,
+                    backgroundColor: periodIndex % 2 === 0 ? `${catColor.bg}50` : `${catColor.bg}30`,
+                    borderRightColor: `${catColor.border}15`,
                   }}
                 >
                   <div
-                    className="text-sm font-black"
+                    className="text-sm font-bold"
                     style={{ color: catColor.text }}
                   >
                     {period.label}
                   </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5 font-medium">
+                  <div className="text-[11px] text-stone-400 mt-0.5">
                     {period.time}
                   </div>
                 </td>
                 {/* 曜日セル */}
-                {days.map((day) => {
+                {days.map((day, dayIdx) => {
                   const cellSlots = getSlots(filteredSlots, day, periodIndex + 1);
                   return (
                     <td
                       key={`${day}-${period.label}`}
-                      className="p-1.5 align-top border-r last:border-r-0"
+                      className={`p-2 align-top ${dayIdx < days.length - 1 ? "border-r" : ""}`}
                       style={{
                         borderRightColor: `${catColor.border}10`,
                       }}
@@ -1038,9 +899,7 @@ function TimetableTable({
                       {cellSlots.length > 0 ? (
                         <div
                           className={`grid gap-1.5 ${
-                            cellSlots.length >= 3
-                              ? "grid-cols-2"
-                              : cellSlots.length === 2
+                            cellSlots.length >= 2
                               ? "grid-cols-2"
                               : "grid-cols-1"
                           }`}
@@ -1066,11 +925,8 @@ function TimetableTable({
                           })}
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center py-4">
-                          <div
-                            className="w-5 h-[2px] rounded-full"
-                            style={{ backgroundColor: `${catColor.border}15` }}
-                          />
+                        <div className="flex items-center justify-center py-3">
+                          <div className="w-4 h-px rounded-full bg-stone-200" />
                         </div>
                       )}
                     </td>
@@ -1101,7 +957,7 @@ function SaturdayCompact({
   filteredSlots: TimetableSlot[];
   getSlots: (slots: TimetableSlot[], day: string, period: number) => TimetableSlot[];
   getCategorySlug: (categoryId: string) => string;
-  catColor: { bg: string; border: string; text: string; gradient: string };
+  catColor: { bg: string; border: string; text: string; gradient: string; headerBg: string; headerText: string };
   selectedCourseIds: Set<string>;
   onToggleCourse: (courseId: string) => void;
 }) {
@@ -1112,22 +968,22 @@ function SaturdayCompact({
         return (
           <div
             key={period.label}
-            className="rounded-xl overflow-hidden border"
+            className="rounded-xl overflow-hidden"
             style={{
-              borderColor: `${catColor.border}20`,
+              border: `1px solid ${catColor.border}20`,
               boxShadow: `0 2px 8px ${catColor.border}08`,
             }}
           >
             {/* 時限ヘッダー */}
             <div
-              className="px-3 py-2 text-center"
+              className="px-3 py-2.5 text-center"
               style={{ background: catColor.gradient }}
             >
-              <div className="text-xs font-black text-white">{period.label}</div>
-              <div className="text-[9px] text-white/80 font-medium">{period.time}</div>
+              <div className="text-sm font-bold text-white">{period.label}</div>
+              <div className="text-[11px] text-white/80">{period.time}</div>
             </div>
             {/* コンテンツ */}
-            <div className="p-2 space-y-1.5" style={{ backgroundColor: "white", minHeight: "60px" }}>
+            <div className="p-2 space-y-1.5" style={{ backgroundColor: "white", minHeight: "56px" }}>
               {cellSlots.length > 0 ? (
                 cellSlots.map((slot) => {
                   const slug = slot.course
@@ -1149,10 +1005,7 @@ function SaturdayCompact({
                 })
               ) : (
                 <div className="flex items-center justify-center h-full py-3">
-                  <div
-                    className="w-5 h-[2px] rounded-full"
-                    style={{ backgroundColor: `${catColor.border}15` }}
-                  />
+                  <div className="w-5 h-px rounded-full bg-stone-200" />
                 </div>
               )}
             </div>
@@ -1175,7 +1028,7 @@ function SlotCard({
   onToggle,
 }: {
   slot: TimetableSlot;
-  color: { bg: string; border: string; text: string; gradient: string };
+  color: { bg: string; border: string; text: string; gradient: string; headerBg: string; headerText: string };
   compact: boolean;
   isSelected?: boolean;
   isSelectable?: boolean;
@@ -1184,28 +1037,23 @@ function SlotCard({
   return (
     <div
       onClick={isSelectable ? onToggle : undefined}
-      className={`group relative rounded-xl overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${
-        compact ? "p-2" : "p-2.5"
-      } ${isSelectable ? "cursor-pointer" : ""}`}
+      className={`group relative rounded-lg transition-all duration-200 ${
+        compact ? "py-2 px-2.5" : "py-2.5 px-3"
+      } ${isSelectable ? "cursor-pointer hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm" : "opacity-50"}`}
       style={{
-        backgroundColor: isSelected ? `${color.bg}` : `${color.bg}60`,
-        border: isSelected
-          ? `2.5px solid ${color.border}`
-          : `1.5px solid ${color.border}30`,
-        boxShadow: isSelected ? `0 0 0 2px ${color.border}20` : undefined,
+        backgroundColor: isSelected ? color.bg : color.bg,
+        border: `2px solid ${isSelected ? color.border : `${color.border}35`}`,
+        boxShadow: isSelected
+          ? `0 4px 14px ${color.border}30`
+          : `0 1px 6px ${color.border}10`,
+        minHeight: compact ? "40px" : "48px",
       }}
     >
-      {/* 上部アクセントライン */}
-      <div
-        className="absolute top-0 left-0 right-0 h-[3px] opacity-80 group-hover:opacity-100 transition-opacity"
-        style={{ background: color.gradient }}
-      />
-
       {/* 選択チェックマーク */}
       {isSelected && (
         <div
-          className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-white"
-          style={{ background: color.gradient, boxShadow: `0 2px 6px ${color.border}40` }}
+          className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-white shadow-sm"
+          style={{ background: color.gradient }}
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
             <path d="M5 13l4 4L19 7" />
@@ -1213,76 +1061,45 @@ function SlotCard({
         </div>
       )}
 
+      {/* ホバー時の選択ヒント */}
+      {!isSelected && isSelectable && (
+        <div
+          className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          style={{ backgroundColor: `${color.border}15`, color: color.border }}
+        >
+          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </div>
+      )}
+
       {/* 講座名 */}
       <div
-        className={`font-bold leading-snug mt-0.5 ${compact ? "text-[11px]" : "text-xs"}`}
-        style={{ color: "#2d3748" }}
+        className={`font-bold leading-snug ${compact ? "text-xs" : "text-sm"}`}
+        style={{ color: color.text }}
       >
         {slot.course?.name ?? "未設定"}
       </div>
 
       {/* 情報行 */}
-      <div className={`mt-1.5 space-y-1 ${compact ? "text-[9px]" : "text-[10px]"}`}>
-        {/* 教室 (統合) */}
-        {slot.classroom && (
-          <div className="flex items-center gap-1">
-            <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md font-bold"
-              style={{
-                backgroundColor: color.bg,
-                color: color.text,
-                fontSize: compact ? "8px" : "9px",
-              }}
-            >
-              <svg
-                className="flex-shrink-0"
-                style={{ width: compact ? "8px" : "9px", height: compact ? "8px" : "9px" }}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth="3"
-              >
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              </svg>
-              {slot.classroom}
-            </span>
-          </div>
-        )}
-
+      <div className={`mt-1 space-y-0.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
         {/* 講師 */}
         {slot.course?.instructor_name && (
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <svg
-              className="flex-shrink-0 opacity-60"
-              style={{
-                color: color.text,
-                width: compact ? "9px" : "10px",
-                height: compact ? "9px" : "10px",
-              }}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth="2.5"
-            >
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-            <span className="truncate">{slot.course.instructor_name}</span>
+          <div className="text-stone-500 truncate">
+            {slot.course.instructor_name}
           </div>
         )}
-
-        {/* 科目バッジ */}
+        {/* 教室 */}
+        {slot.classroom && (
+          <div className="font-medium" style={{ color: `${color.text}bb` }}>
+            {slot.classroom}
+          </div>
+        )}
+        {/* 科目 */}
         {slot.course?.subject && (
-          <span
-            className="inline-block px-1.5 py-0.5 rounded-md font-bold"
-            style={{
-              fontSize: compact ? "7px" : "8px",
-              backgroundColor: `${color.border}15`,
-              color: color.text,
-            }}
-          >
+          <div className="text-stone-400" style={{ fontSize: compact ? "9px" : "10px" }}>
             {slot.course.subject}
-          </span>
+          </div>
         )}
       </div>
     </div>

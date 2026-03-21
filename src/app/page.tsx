@@ -387,7 +387,7 @@ export default function HomePage() {
                   <Button asChild size="lg" className="bg-[#f6ad3c] text-white hover:bg-[#e89a20] font-bold text-base px-10 py-6 rounded-xl shadow-lg shadow-orange-500/20 transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5">
                     <Link href="/apply">お申し込みはこちら<ArrowRight className="ml-2 h-5 w-5" /></Link>
                   </Button>
-                  <Button asChild variant="outline" size="lg" className="border-2 border-white/30 text-white hover:bg-white/10 hover:border-white/50 text-base px-10 py-6 rounded-xl backdrop-blur-sm transition-all duration-300">
+                  <Button asChild variant="outline" size="lg" className="border-2 border-white/40 bg-white/10 text-white hover:bg-white/20 hover:border-white/60 text-base px-10 py-6 rounded-xl backdrop-blur-sm transition-all duration-300">
                     <Link href="/auth/student-login">受講生ログイン</Link>
                   </Button>
                 </div>
@@ -465,8 +465,8 @@ export default function HomePage() {
         {/* ===== 3. 4つのメリット ===== */}
         <section id="merit" className="py-24 lg:py-32" style={{ backgroundColor: "#fffaf3" }}>
           <div className="mx-auto max-w-6xl px-4">
-            <div className="text-center" ref={observe}>
-              <div className="scroll-animate"><SectionTitle>淑徳アドバンスの <span className="text-[#1b99a4]">4つのメリット</span></SectionTitle></div>
+            <div className="text-center">
+              <div ref={observe} className="scroll-animate"><SectionTitle>淑徳アドバンスの <span className="text-[#1b99a4]">4つのメリット</span></SectionTitle></div>
             </div>
             <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {merits.map((merit, i) => (
@@ -489,8 +489,8 @@ export default function HomePage() {
         {/* ===== 4. 3つの学び方 with mock images ===== */}
         <section id="courses" className="bg-white py-24 lg:py-32">
           <div className="mx-auto max-w-6xl px-4">
-            <div className="text-center" ref={observe}>
-              <div className="scroll-animate"><SectionTitle><span className="text-[#1b99a4]">3つの学び方</span>で確実に力をつける</SectionTitle></div>
+            <div className="text-center">
+              <div ref={observe} className="scroll-animate"><SectionTitle><span className="text-[#1b99a4]">3つの学び方</span>で確実に力をつける</SectionTitle></div>
             </div>
             <div className="mt-14 grid gap-10 lg:grid-cols-3">
               {courseTypes.map((course, i) => (
@@ -523,7 +523,7 @@ export default function HomePage() {
         </section>
 
         {/* ===== 5. Testimonials ===== */}
-        <section className="py-24 lg:py-32" style={{ backgroundColor: "#fffaf3" }}>
+        <section className="py-24 lg:py-32 -mb-px" style={{ backgroundColor: "#fffaf3" }}>
           <div className="mx-auto max-w-6xl px-4">
             <div ref={observe} className="scroll-animate text-center"><SectionTitle>受講生の<span className="text-[#1b99a4]">声</span></SectionTitle></div>
             <div className="mt-14 grid gap-6 md:grid-cols-3">
@@ -553,13 +553,13 @@ export default function HomePage() {
         </section>
 
         {/* ===== 6. Stats ===== */}
-        <section className="relative bg-gradient-to-br from-teal-800 via-[#1b99a4] to-teal-700 py-20 lg:py-28 text-white overflow-hidden">
+        <section className="relative bg-gradient-to-br from-teal-800 via-[#1b99a4] to-teal-700 py-20 lg:py-28 text-white overflow-hidden -mb-px">
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-[10%] left-[5%] w-40 h-40 rounded-full bg-white/[0.03] animate-float-slow" />
             <div className="absolute bottom-[10%] right-[8%] w-24 h-24 rounded-full bg-white/[0.05] animate-float" />
           </div>
           <div className="relative z-10 mx-auto max-w-6xl px-4">
-            <div className="text-center mb-16" ref={observe}><div className="scroll-animate"><SectionTitle white>数字で見る淑徳アドバンス</SectionTitle></div></div>
+            <div className="text-center mb-16"><div ref={observe} className="scroll-animate"><SectionTitle white>数字で見る淑徳アドバンス</SectionTitle></div></div>
             <div className="grid grid-cols-2 gap-10 lg:grid-cols-4 lg:gap-8">
               {stats.map((stat, i) => (<StatCard key={i} value={stat.value} label={stat.label} delay={i * 200} />))}
             </div>
@@ -581,7 +581,7 @@ export default function HomePage() {
               <Button asChild size="lg" className="bg-[#f6ad3c] text-white hover:bg-[#e89a20] font-bold text-base px-10 py-6 rounded-xl shadow-lg shadow-orange-500/20 transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5">
                 <Link href="/apply">お申し込みはこちら<ArrowRight className="ml-2 h-5 w-5" /></Link>
               </Button>
-              <Button asChild variant="outline" size="lg" className="border-2 border-white/30 text-white hover:bg-white/10 hover:border-white/50 text-base px-10 py-6 rounded-xl backdrop-blur-sm transition-all duration-300">
+              <Button asChild variant="outline" size="lg" className="border-2 border-white/40 bg-white/10 text-white hover:bg-white/20 hover:border-white/60 text-base px-10 py-6 rounded-xl backdrop-blur-sm transition-all duration-300">
                 <Link href="/contact" className="gap-2"><Phone className="h-5 w-5 mr-2" /> お問い合わせ</Link>
               </Button>
             </div>

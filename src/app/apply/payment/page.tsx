@@ -18,6 +18,9 @@ import type { Course } from '@/lib/types/database'
 import type { PaymentMethod } from '@/lib/types/database'
 import { PAYMENT_METHODS } from '@/lib/constants'
 import { ArrowRight, Loader2 } from 'lucide-react'
+import { calculateGroupTotal, parsePricingConfig, GROUP_PRICE_PER_COURSE } from '@/lib/pricing'
+import type { PricingConfig } from '@/lib/pricing'
+import type { TuitionInfo } from '@/lib/types/database'
 
 export default function PaymentPage() {
   return (
@@ -31,6 +34,7 @@ function PaymentContent() {
   const [courses, setCourses] = useState<Course[]>([])
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('bank_transfer')
   const [loading, setLoading] = useState(true)
+  const [pricingConfig, setPricingConfig] = useState<PricingConfig | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const coursesParam = searchParams.get('courses') ?? ''
@@ -38,25 +42,32 @@ function PaymentContent() {
   const supabase = createClient()
 
   useEffect(() => {
-    const fetchCourses = async () => {
+    const fetchData = async () => {
       if (courseIds.length === 0) {
         router.push('/apply')
         return
       }
 
-      const { data } = await supabase
-        .from('courses')
-        .select('*')
-        .in('id', courseIds)
+      const [coursesRes, tuitionRes] = await Promise.all([
+        supabase.from('courses').select('*').in('id', courseIds),
+        supabase.from('tuition_info').select('*').order('display_order'),
+      ])
 
-      if (data) setCourses(data)
+      if (coursesRes.data) setCourses(coursesRes.data)
+      if (tuitionRes.data) {
+        setPricingConfig(parsePricingConfig(tuitionRes.data as TuitionInfo[]))
+      }
       setLoading(false)
     }
 
-    fetchCourses()
+    fetchData()
   }, [])
 
-  const totalPrice = courses.reduce((sum, c) => sum + c.price, 0)
+  // 料金計算（DB設定を使用）
+  const grade = courses.length > 0 ? (courses[0]?.target_grade ?? null) : null
+  const pricing = courses.length > 0
+    ? calculateGroupTotal(courses.length, grade, pricingConfig ?? undefined)
+    : { total: 0, isFlatRate: false, perCourse: pricingConfig?.groupPricePerCourse ?? GROUP_PRICE_PER_COURSE }
 
   const handleNext = () => {
     const params = new URLSearchParams()
@@ -96,14 +107,21 @@ function PaymentContent() {
                 <p className="text-xs text-muted-foreground">{course.subject}</p>
               </div>
               <p className="text-sm font-semibold">
-                {course.price.toLocaleString()}円
+                {pricing.perCourse.toLocaleString()}円
               </p>
             </div>
           ))}
           <Separator />
           <div className="flex items-center justify-between">
             <p className="font-semibold">合計</p>
-            <p className="text-lg font-bold">{totalPrice.toLocaleString()}円</p>
+            <div className="text-right">
+              <p className="text-lg font-bold">{pricing.total.toLocaleString()}円</p>
+              {pricing.isFlatRate && (
+                <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-bold text-green-800 border border-green-200 mt-1">
+                  会期定額制適用
+                </span>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -28,11 +28,15 @@ function StudentLoginContent() {
   const [error, setError] = useState<string | null>(null)
   const searchParams = useSearchParams()
   const authError = searchParams.get('error')
+  const nextParam = searchParams.get('next')
   const supabase = createClient()
 
   const handleGoogleLogin = async () => {
     setLoading(true)
     setError(null)
+
+    // nextパラメータが指定されている場合はそちらにリダイレクト（申込フローからの遷移時）
+    const redirectPath = nextParam || '/student'
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -40,7 +44,7 @@ function StudentLoginContent() {
         queryParams: {
           hd: 'shukutoku.ed.jp',
         },
-        redirectTo: `${window.location.origin}/auth/callback?next=/student`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
       },
     })
 

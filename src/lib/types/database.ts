@@ -1,3 +1,9 @@
+/**
+ * データベース型定義
+ * ⚠️ SHARED FILE: このファイルは shukutoku-advance と admin-shukutoku-advance で同期が必要です
+ * 変更時は両方のプロジェクトに反映してください
+ */
+
 export interface Term {
   id: string
   name: string
@@ -12,7 +18,7 @@ export interface Term {
   updated_at: string
 }
 
-export type UserRole = 'student' | 'admin' | 'instructor' | 'tutor'
+export type UserRole = 'student' | 'admin' | 'instructor' | 'tutor' | 'individual_instructor'
 
 export interface Profile {
   id: string
@@ -80,7 +86,7 @@ export interface TimetableSlot {
   course?: Course
 }
 
-export type PaymentMethod = 'bank_transfer' | 'account_transfer_lump' | 'account_transfer_installment'
+export type PaymentMethod = 'bank_transfer' | 'installment_1' | 'installment_2'
 export type PaymentStatus = 'unpaid' | 'partial' | 'paid' | 'refunded'
 export type EnrollmentStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed'
 
@@ -101,7 +107,7 @@ export interface Enrollment {
   updated_at: string
   // Relations
   student?: Profile
-  course?: Course
+  course?: Course | null
   term_info?: Term
 }
 
@@ -163,6 +169,9 @@ export interface TuitionInfo {
   label: string
   price: number
   unit: string
+  min_courses: number | null
+  description: string | null
+  color: string | null
   notes: string | null
   display_order: number
   created_at: string
@@ -216,4 +225,23 @@ export interface StudentUsageNote {
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+export type TutorAssignmentStatus = 'pending' | 'confirmed' | 'cancelled'
+
+export interface TutorAssignment {
+  id: string
+  enrollment_id: string
+  tutor_id: string
+  confirmed_day: string
+  confirmed_period: string
+  status: TutorAssignmentStatus
+  tutor_notes: string | null
+  assigned_at: string
+  confirmed_at: string | null
+  created_at: string
+  updated_at: string
+  // Relations
+  enrollment?: Enrollment
+  tutor?: Profile
 }

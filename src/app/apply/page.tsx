@@ -12,39 +12,17 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Course, CourseCategory } from '@/lib/types/database'
-import { COURSE_TYPES } from '@/lib/constants'
+import { COURSE_TYPES, SENIOR_GRADE_CATEGORIES, SENIOR_GRADES, JUNIOR_GRADES } from '@/lib/constants'
 import { ArrowRight, List, CalendarDays, Loader2, UserPlus } from 'lucide-react'
 import Link from 'next/link'
 import { formatTime } from '@/lib/utils'
-
-// ============================================================
-// 時限定義（時間割タブ用）
-// ============================================================
-const WEEKDAY_PERIODS = [
-  { label: '1限', time: '15:30〜16:50' },
-  { label: '2限', time: '17:00〜18:20' },
-  { label: '3限', time: '18:30〜19:50' },
-] as const
-
-const SATURDAY_PERIODS = [
-  { label: '1限', time: '13:10〜14:30' },
-  { label: '2限', time: '14:40〜16:00' },
-  { label: '3限', time: '16:10〜17:30' },
-  { label: '4限', time: '17:40〜19:00' },
-] as const
-
-const WEEKDAYS = ['月', '火', '水', '木', '金'] as const
-
-const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string; gradient: string }> = {
-  general:        { bg: '#e0f4f8', border: '#1b99a4', text: '#1b99a4', gradient: 'linear-gradient(135deg, #1b99a4, #21c5d3)' },
-  recommendation: { bg: '#fff3e0', border: '#f6ad3c', text: '#e09520', gradient: 'linear-gradient(135deg, #f6ad3c, #f9c76b)' },
-  ryugata:        { bg: '#e8f5e9', border: '#4caf50', text: '#2e7d32', gradient: 'linear-gradient(135deg, #4caf50, #66bb6a)' },
-  junior:         { bg: '#e3f2fd', border: '#2196f3', text: '#1565c0', gradient: 'linear-gradient(135deg, #2196f3, #42a5f5)' },
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  general: '一般', recommendation: '推薦', ryugata: '留型', junior: '中学',
-}
+import {
+  WEEKDAYS,
+  WEEKDAY_PERIODS,
+  SATURDAY_PERIODS,
+  CATEGORY_COLORS,
+  CATEGORY_LABELS,
+} from '@/lib/timetable-constants'
 
 interface TimetableSlot {
   id: string
@@ -66,15 +44,8 @@ interface TimetableSlot {
   } | null
 }
 
-interface CategoryInfo { id: string; slug: string; name: string }
+import type { CategoryInfo } from '@/lib/types/shared-types'
 
-const SENIOR_GRADE_CATEGORIES: Record<string, string[]> = {
-  '高1': ['general', 'recommendation'],
-  '高2': ['general', 'recommendation', 'ryugata'],
-  '高3': ['general', 'recommendation'],
-}
-const SENIOR_GRADES = ['高3', '高2', '高1']
-const JUNIOR_GRADES = ['中3', '中2', '中1']
 
 export default function ApplyPage() {
   const [categories, setCategories] = useState<CourseCategory[]>([])
@@ -90,6 +61,11 @@ export default function ApplyPage() {
   const gradeRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    // ページ表示時に最上部へスクロール
+    window.scrollTo(0, 0)
+  }, [])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -139,7 +115,6 @@ export default function ApplyPage() {
   }, [])
 
   const selectedCourses = courses.filter((c) => selectedCourseIds.includes(c.id))
-  const totalPrice = selectedCourses.reduce((sum, c) => sum + c.price, 0)
 
   // For timetable mode, also compute prices from timetable slots
   const timetableTotalPrice = (() => {
@@ -162,7 +137,8 @@ export default function ApplyPage() {
     if (selectedCourseIds.length === 0) return
     const params = new URLSearchParams()
     params.set('courses', selectedCourseIds.join(','))
-    router.push(`/apply/login?${params.toString()}`)
+    // 統合フローへ（個別指導もまとめて申し込み可能）
+    router.push(`/apply/individual?${params.toString()}`)
   }
 
   const getCoursesByCategory = (categoryId: string) =>
@@ -219,12 +195,20 @@ export default function ApplyPage() {
             受講したい講座を選択してください。複数選択が可能です。
           </p>
         </div>
-        <Link href="/apply/individual">
-          <Button variant="outline" className="gap-2 border-[#f6ad3c] text-[#e09520] hover:bg-[#fff3e0] whitespace-nowrap">
-            <UserPlus className="size-4" />
-            個別指導の申し込み
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/apply/individual">
+            <Button variant="outline" className="gap-2 whitespace-nowrap rounded-full" style={{ borderColor: '#8C5CC8', color: '#8C5CC8', borderWidth: '2px' }}>
+              <UserPlus className="size-4" />
+              個別指導の申し込み
+            </Button>
+          </Link>
+          <Link href="/timetable">
+            <Button variant="outline" className="gap-2 whitespace-nowrap rounded-full" style={{ borderColor: '#21B8C5', color: '#21B8C5', borderWidth: '2px' }}>
+              <CalendarDays className="size-4" />
+              時間割から選択
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* メインタブ: 講座一覧 / 時間割 */}
@@ -298,7 +282,7 @@ export default function ApplyPage() {
                                 )}
                               </div>
                               {course.description && (
-                                <p className="mt-1 text-sm text-slate-600">{course.description}</p>
+                                <p className="mt-1 text-sm text-stone-500">{course.description}</p>
                               )}
                             </div>
                             <div className="shrink-0 text-right">
@@ -332,11 +316,11 @@ export default function ApplyPage() {
                 <button
                   key={tab.key}
                   onClick={() => handleSchoolTabChange(tab.key)}
-                  className="px-8 py-2.5 rounded-xl text-sm font-bold transition-all duration-300"
+                  className="px-8 py-2.5 rounded-full text-sm font-bold transition-all duration-300"
                   style={
                     schoolTab === tab.key
-                      ? { background: 'linear-gradient(135deg, #1b99a4, #21c5d3)', color: 'white', boxShadow: '0 4px 16px rgba(27,153,164,0.35)' }
-                      : { backgroundColor: 'white', color: '#1b99a4', border: '2px solid #e0f4f8' }
+                      ? { background: 'linear-gradient(135deg, #21B8C5, #42D8E8)', color: 'white', boxShadow: '0 4px 14px rgba(33,184,197,0.35)' }
+                      : { backgroundColor: '#f0f8f9', color: '#21B8C5', border: '2px solid #21B8C530' }
                   }
                 >
                   {tab.label}
@@ -350,11 +334,11 @@ export default function ApplyPage() {
                 <button
                   key={grade}
                   onClick={() => scrollToGrade(grade)}
-                  className="px-5 py-1.5 rounded-full text-xs font-bold transition-all duration-300"
+                  className="px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300"
                   style={
                     activeGrade === grade
-                      ? { background: 'linear-gradient(135deg, #f6ad3c, #f9c76b)', color: 'white', boxShadow: '0 2px 10px rgba(246,173,60,0.35)' }
-                      : { backgroundColor: '#f5f0e8', color: '#8b7355' }
+                      ? { background: 'linear-gradient(135deg, #21B8C5, #42D8E8)', color: 'white', boxShadow: '0 2px 10px rgba(33,184,197,0.30)' }
+                      : { backgroundColor: '#f0f8f9', color: '#21B8C5', border: '1.5px solid #21B8C525' }
                   }
                 >
                   {grade}
@@ -371,25 +355,25 @@ export default function ApplyPage() {
                     {/* Grade Header */}
                     <div className="flex items-center gap-4 mb-8">
                       <div
-                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg"
-                        style={{ background: 'linear-gradient(135deg, #1b99a4, #21c5d3)', boxShadow: '0 8px 24px rgba(27,153,164,0.3)' }}
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold text-base"
+                        style={{ background: 'linear-gradient(135deg, #21B8C5, #42D8E8)', boxShadow: '0 6px 20px rgba(33,184,197,0.30)' }}
                       >
                         {grade}
                       </div>
                       <div>
-                        <h2 className="text-xl font-black">{grade}</h2>
-                        <div className="flex items-center gap-2 mt-1">
+                        <h2 className="text-xl font-bold" style={{ color: '#2A2A2A' }}>{grade}</h2>
+                        <div className="flex items-center gap-1.5 mt-1">
                           {categorySlugs.map((s) => {
                             const c = CATEGORY_COLORS[s] ?? CATEGORY_COLORS.general
                             return (
-                              <span key={s} className="inline-flex items-center px-3 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: c.bg, color: c.text }}>
+                              <span key={s} className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold" style={{ background: c.gradient, color: 'white' }}>
                                 {CATEGORY_LABELS[s] ?? s}
                               </span>
                             )
                           })}
                         </div>
                       </div>
-                      <div className="flex-1 h-[2px]" style={{ background: 'linear-gradient(90deg, #1b99a4 0%, rgba(27,153,164,0.1) 60%, transparent 100%)' }} />
+                      <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, #21B8C530, transparent)' }} />
                     </div>
 
                     {/* Per category timetable */}
@@ -403,16 +387,16 @@ export default function ApplyPage() {
                         <div key={catSlug} className="mb-10 last:mb-0">
                           {showCategoryLabel && (
                             <div className="flex items-center gap-3 mb-4">
-                              <div className="px-4 py-2 rounded-xl text-sm font-bold text-white" style={{ background: catColor.gradient }}>
+                              <div className="px-4 py-2 rounded-full text-sm font-bold shadow-sm" style={{ background: catColor.gradient, color: 'white', boxShadow: `0 2px 8px ${catColor.border}25` }}>
                                 {catLabel}
                               </div>
-                              <div className="flex-1 h-[2px]" style={{ background: `linear-gradient(90deg, ${catColor.border}50, transparent)` }} />
+                              <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${catColor.border}30, transparent)` }} />
                             </div>
                           )}
 
                           {/* 平日テーブル */}
                           <div className="mb-6">
-                            <h3 className="text-sm font-bold mb-2" style={{ color: catColor.text }}>月〜金曜日</h3>
+                            <h3 className="text-sm font-semibold mb-2 text-stone-500">月〜金曜日</h3>
                             <MiniTimetable
                               days={[...WEEKDAYS]}
                               periods={[...WEEKDAY_PERIODS]}
@@ -427,7 +411,7 @@ export default function ApplyPage() {
 
                           {/* 土曜テーブル */}
                           <div>
-                            <h3 className="text-sm font-bold mb-2" style={{ color: '#e09520' }}>土曜日</h3>
+                            <h3 className="text-sm font-semibold mb-2 text-stone-500">土曜日</h3>
                             <MiniSaturday
                               periods={[...SATURDAY_PERIODS]}
                               filteredSlots={filteredSlots}
@@ -481,35 +465,35 @@ function MiniTimetable({
   filteredSlots: TimetableSlot[]
   getSlots: (slots: TimetableSlot[], day: string, period: number) => TimetableSlot[]
   getCategorySlug: (categoryId: string) => string
-  catColor: { bg: string; border: string; text: string; gradient: string }
+  catColor: { bg: string; border: string; text: string; gradient: string; headerBg: string; headerText: string }
   selectedCourseIds: string[]
   onToggleCourse: (courseId: string) => void
 }) {
   return (
-    <div className="rounded-xl overflow-hidden border" style={{ borderColor: `${catColor.border}25` }}>
+    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${catColor.border}20`, boxShadow: `0 2px 12px ${catColor.border}08` }}>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse" style={{ minWidth: '680px' }}>
           <thead>
             <tr>
-              <th className="py-2 px-2 text-xs font-bold text-white text-center" style={{ background: catColor.gradient, width: '90px' }}>時限</th>
-              {days.map((day) => (
-                <th key={day} className="py-2 px-2 text-xs font-bold text-white text-center" style={{ background: catColor.gradient, minWidth: '110px' }}>{day}</th>
+              <th className="py-3 px-2 text-xs font-bold text-center tracking-wide border-r" style={{ background: catColor.gradient, color: 'white', width: '90px', borderRightColor: 'rgba(255,255,255,0.25)' }}>時限</th>
+              {days.map((day, i) => (
+                <th key={day} className={`py-3 px-2 text-xs font-bold text-center tracking-wide ${i < days.length - 1 ? 'border-r' : ''}`} style={{ background: catColor.gradient, color: 'white', minWidth: '110px', borderRightColor: 'rgba(255,255,255,0.25)' }}>{day}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {periods.map((period, pi) => (
-              <tr key={period.label} style={{ backgroundColor: pi % 2 === 0 ? 'white' : '#fafaf8' }}>
-                <td className="py-2 px-2 text-center border-r" style={{ backgroundColor: `${catColor.bg}80`, borderRightColor: `${catColor.border}20` }}>
-                  <div className="text-xs font-black" style={{ color: catColor.text }}>{period.label}</div>
-                  <div className="text-[9px] text-muted-foreground">{period.time}</div>
+              <tr key={period.label} style={{ backgroundColor: pi % 2 === 0 ? 'white' : '#f8fafb', borderTop: `1px solid ${catColor.border}12` }}>
+                <td className="py-3 px-2 text-center border-r" style={{ backgroundColor: pi % 2 === 0 ? `${catColor.bg}50` : `${catColor.bg}30`, borderRightColor: `${catColor.border}15` }}>
+                  <div className="text-sm font-bold" style={{ color: catColor.text }}>{period.label}</div>
+                  <div className="text-[11px] text-stone-400">{period.time}</div>
                 </td>
-                {days.map((day) => {
+                {days.map((day, dayIdx) => {
                   const cellSlots = getSlots(filteredSlots, day, pi + 1)
                   return (
-                    <td key={`${day}-${pi}`} className="p-1 align-top border-r last:border-r-0" style={{ borderRightColor: `${catColor.border}10` }}>
+                    <td key={`${day}-${pi}`} className={`p-2 align-top ${dayIdx < days.length - 1 ? 'border-r' : ''}`} style={{ borderRightColor: `${catColor.border}10` }}>
                       {cellSlots.length > 0 ? (
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                           {cellSlots.map((slot) => {
                             const slug = slot.course ? getCategorySlug(slot.course.category_id) : 'general'
                             const slotColor = CATEGORY_COLORS[slug] ?? CATEGORY_COLORS.general
@@ -519,22 +503,22 @@ function MiniTimetable({
                               <div
                                 key={slot.id}
                                 onClick={() => isOpen && onToggleCourse(slot.course_id)}
-                                className={`relative rounded-lg p-1.5 text-[10px] transition-all cursor-pointer hover:shadow-md`}
+                                className="relative py-2 px-2.5 text-xs transition-all duration-200 cursor-pointer rounded-lg hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
                                 style={{
-                                  backgroundColor: isSelected ? slotColor.bg : `${slotColor.bg}60`,
-                                  border: isSelected ? `2px solid ${slotColor.border}` : `1px solid ${slotColor.border}30`,
+                                  backgroundColor: isSelected ? slotColor.bg : slotColor.bg,
+                                  border: `2px solid ${isSelected ? slotColor.border : `${slotColor.border}35`}`,
+                                  boxShadow: isSelected ? `0 4px 14px ${slotColor.border}30` : `0 1px 6px ${slotColor.border}10`,
+                                  minHeight: '40px',
                                 }}
                               >
                                 {isSelected && (
-                                  <div className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-white" style={{ background: slotColor.gradient }}>
+                                  <div className="absolute -top-1.5 -right-1.5 rounded-full flex items-center justify-center text-white shadow-sm" style={{ background: slotColor.gradient, width: '16px', height: '16px' }}>
                                     <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path d="M5 13l4 4L19 7" /></svg>
                                   </div>
                                 )}
-                                <div className="font-bold text-[10px] leading-tight pr-4">{slot.course?.name ?? '未設定'}</div>
+                                <div className="font-bold text-xs leading-tight pr-4" style={{ color: slotColor.text }}>{slot.course?.name ?? '未設定'}</div>
                                 {slot.classroom && (
-                                  <span className="inline-block mt-0.5 px-1 py-0.5 rounded text-[8px] font-bold" style={{ backgroundColor: slotColor.bg, color: slotColor.text }}>
-                                    {slot.classroom}
-                                  </span>
+                                  <div className="text-[10px] font-medium mt-0.5" style={{ color: `${slotColor.text}bb` }}>{slot.classroom}</div>
                                 )}
                               </div>
                             )
@@ -542,7 +526,7 @@ function MiniTimetable({
                         </div>
                       ) : (
                         <div className="flex items-center justify-center py-3">
-                          <div className="w-4 h-[2px] rounded-full" style={{ backgroundColor: `${catColor.border}15` }} />
+                          <div className="w-4 h-px rounded-full bg-stone-200" />
                         </div>
                       )}
                     </td>
@@ -567,7 +551,7 @@ function MiniSaturday({
   filteredSlots: TimetableSlot[]
   getSlots: (slots: TimetableSlot[], day: string, period: number) => TimetableSlot[]
   getCategorySlug: (categoryId: string) => string
-  catColor: { bg: string; border: string; text: string; gradient: string }
+  catColor: { bg: string; border: string; text: string; gradient: string; headerBg: string; headerText: string }
   selectedCourseIds: string[]
   onToggleCourse: (courseId: string) => void
 }) {
@@ -576,12 +560,12 @@ function MiniSaturday({
       {periods.map((period, pi) => {
         const cellSlots = getSlots(filteredSlots, '土', pi + 1)
         return (
-          <div key={period.label} className="rounded-xl overflow-hidden border" style={{ borderColor: `${catColor.border}20` }}>
-            <div className="px-3 py-1.5 text-center" style={{ background: catColor.gradient }}>
-              <div className="text-xs font-black text-white">{period.label}</div>
-              <div className="text-[9px] text-white/80">{period.time}</div>
+          <div key={period.label} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${catColor.border}20`, boxShadow: `0 2px 8px ${catColor.border}08` }}>
+            <div className="px-3 py-2.5 text-center" style={{ background: catColor.gradient }}>
+              <div className="text-sm font-bold text-white">{period.label}</div>
+              <div className="text-[11px] text-white/80">{period.time}</div>
             </div>
-            <div className="p-2 space-y-1" style={{ backgroundColor: 'white', minHeight: '50px' }}>
+            <div className="p-2 space-y-1.5" style={{ backgroundColor: 'white', minHeight: '56px' }}>
               {cellSlots.length > 0 ? (
                 cellSlots.map((slot) => {
                   const slug = slot.course ? getCategorySlug(slot.course.category_id) : 'general'
@@ -592,24 +576,26 @@ function MiniSaturday({
                     <div
                       key={slot.id}
                       onClick={() => isOpen && onToggleCourse(slot.course_id)}
-                      className="relative rounded-lg p-1.5 text-[10px] transition-all cursor-pointer hover:shadow-md"
+                      className="relative py-2 px-2.5 text-xs transition-all duration-200 cursor-pointer rounded-lg hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
                       style={{
-                        backgroundColor: isSelected ? slotColor.bg : `${slotColor.bg}60`,
-                        border: isSelected ? `2px solid ${slotColor.border}` : `1px solid ${slotColor.border}30`,
+                        backgroundColor: isSelected ? slotColor.bg : slotColor.bg,
+                        border: `2px solid ${isSelected ? slotColor.border : `${slotColor.border}35`}`,
+                        boxShadow: isSelected ? `0 4px 14px ${slotColor.border}30` : `0 1px 6px ${slotColor.border}10`,
+                        minHeight: '40px',
                       }}
                     >
                       {isSelected && (
-                        <div className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-white" style={{ background: slotColor.gradient }}>
+                        <div className="absolute -top-1.5 -right-1.5 rounded-full flex items-center justify-center text-white shadow-sm" style={{ background: slotColor.gradient, width: '16px', height: '16px' }}>
                           <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path d="M5 13l4 4L19 7" /></svg>
                         </div>
                       )}
-                      <div className="font-bold text-[10px] leading-tight pr-4">{slot.course?.name ?? '未設定'}</div>
+                      <div className="font-bold text-xs leading-tight pr-4" style={{ color: slotColor.text }}>{slot.course?.name ?? '未設定'}</div>
                     </div>
                   )
                 })
               ) : (
                 <div className="flex items-center justify-center py-2">
-                  <div className="w-4 h-[2px] rounded-full" style={{ backgroundColor: `${catColor.border}15` }} />
+                  <div className="w-4 h-px rounded-full bg-stone-200" />
                 </div>
               )}
             </div>

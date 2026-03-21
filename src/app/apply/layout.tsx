@@ -7,9 +7,9 @@ import { cn } from '@/lib/utils'
 import { Check } from 'lucide-react'
 
 const groupSteps = [
-  { path: '/apply', label: '講座選択' },
+  { path: '/apply', label: '選択' },
   { path: '/apply/login', label: 'ログイン' },
-  { path: '/apply/payment', label: '支払い方法' },
+  { path: '/apply/payment', label: '支払い' },
   { path: '/apply/confirm', label: '確認' },
   { path: '/apply/complete', label: '完了' },
 ]

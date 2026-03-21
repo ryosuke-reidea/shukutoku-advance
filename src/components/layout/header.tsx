@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { Menu, Phone, LogIn, ArrowRight, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,23 +56,6 @@ export function Header() {
           borderBottom: "1px solid rgba(226, 232, 240, 0.6)",
         }}
       >
-        {/* Phone number bar - desktop only */}
-        <div
-          className={`hidden border-b border-slate-100 bg-slate-50/80 transition-all duration-300 lg:block ${
-            scrolled ? "h-0 overflow-hidden opacity-0" : "h-auto opacity-100"
-          }`}
-        >
-          <div className="mx-auto flex max-w-7xl items-center justify-end px-4 py-1.5 sm:px-6 lg:px-8">
-            <a
-              href="tel:03-3969-7411"
-              className="flex items-center gap-1.5 text-xs text-slate-500 transition-colors duration-200 hover:text-[#1b99a4]"
-            >
-              <Phone className="size-3" />
-              <span>03-3969-7411</span>
-            </a>
-          </div>
-        </div>
-
         {/* Main navigation bar */}
         <div
           className={`mx-auto flex max-w-7xl items-center justify-between px-4 transition-all duration-300 sm:px-6 lg:px-8 ${
@@ -81,26 +65,18 @@ export function Header() {
           {/* Logo */}
           <Link
             href="/"
-            className="group flex items-baseline gap-1 transition-opacity duration-200 hover:opacity-80"
+            className="group transition-opacity duration-200 hover:opacity-80"
           >
-            <span
-              className="text-2xl font-bold tracking-wide"
-              style={{
-                color: "#1b99a4",
-                fontFamily:
-                  "'Noto Serif JP', 'Yu Mincho', 'Hiragino Mincho ProN', serif",
-              }}
-            >
-              淑徳
-            </span>
-            <span
-              className={`font-medium tracking-widest text-slate-700 transition-all duration-300 ${
-                scrolled ? "text-sm" : "text-base"
+            <Image
+              src="/logo.svg"
+              alt="淑徳アドバンス"
+              width={180}
+              height={35}
+              className={`transition-all duration-300 ${
+                scrolled ? "h-8 w-auto" : "h-10 w-auto"
               }`}
-              style={{ letterSpacing: "0.15em" }}
-            >
-              アドバンス
-            </span>
+              priority
+            />
           </Link>
 
           {/* Desktop Navigation */}
@@ -173,23 +149,14 @@ export function Header() {
               />
 
               <SheetHeader className="px-6 pb-2 pt-6">
-                <SheetTitle className="flex items-baseline gap-1 text-left">
-                  <span
-                    className="text-xl font-bold"
-                    style={{
-                      color: "#1b99a4",
-                      fontFamily:
-                        "'Noto Serif JP', 'Yu Mincho', 'Hiragino Mincho ProN', serif",
-                    }}
-                  >
-                    淑徳
-                  </span>
-                  <span
-                    className="text-sm font-medium tracking-widest text-slate-700"
-                    style={{ letterSpacing: "0.15em" }}
-                  >
-                    アドバンス
-                  </span>
+                <SheetTitle className="text-left">
+                  <Image
+                    src="/logo.svg"
+                    alt="淑徳アドバンス"
+                    width={150}
+                    height={29}
+                    className="h-7 w-auto"
+                  />
                 </SheetTitle>
               </SheetHeader>
 
